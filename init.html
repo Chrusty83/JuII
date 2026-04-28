@@ -3,21 +3,91 @@
 <head>
   <meta charset="UTF-8">
   <title>Strichliste</title>
+  <style>
+    body {
+      background-color: #111;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    table {
+      margin: 20px auto;
+      border-collapse: collapse;
+      width: 60%;
+    }
+
+    th, td {
+      border: 1px solid #444;
+      padding: 12px;
+    }
+
+    th {
+      background-color: #222;
+    }
+
+    button {
+      padding: 8px 16px;
+      background-color: #0a84ff;
+      border: none;
+      color: white;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+
+    button:hover {
+      background-color: #0066cc;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      font-size: 12px;
+      color: #aaa;
+    }
+  </style>
 </head>
 <body>
-  <h1>Strichliste</h1>
-  <h2 id="name"></h2>
-  <p id="count">0</p>
-  <button onclick="add()">+1</button>
-  <button onclick="reset()">Reset</button>
 
-  <ul id="history"></ul>
+<h1>Strichliste</h1>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+<table>
+  <tr>
+    <th>Name</th>
+    <th>Striche</th>
+    <th>Aktion</th>
+  </tr>
 
-    const firebaseConfig = {
+  <tr>
+    <td>Bernd</td>
+    <td id="Bernd">0</td>
+    <td><button onclick="add('Bernd')">+1</button></td>
+  </tr>
+
+  <tr>
+    <td>Basti</td>
+    <td id="Basti">0</td>
+    <td><button onclick="add('Basti')">+1</button></td>
+  </tr>
+
+  <tr>
+    <td>Dietmar</td>
+    <td id="Dietmar">0</td>
+    <td><button onclick="add('Dietmar')">+1</button></td>
+  </tr>
+</table>
+
+<h2>Verlauf</h2>
+<ul id="history"></ul>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+ const firebaseConfig = {
   apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
   authDomain: "juii-strichliste.firebaseapp.com",
   projectId: "juii-strichliste",
@@ -28,68 +98,72 @@
 };
 
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
 
-    // 📌 ID aus URL holen
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("id") || "default";
+  const ref = doc(db, "strichliste", "main");
 
-    document.getElementById("name").innerText = id;
+  async function load() {
+    const snap = await getDoc(ref);
 
-    const ref = doc(db, "lists", id);
+    if (snap.exists()) {
+      const data = snap.data();
 
-    async function load() {
-      const snap = await getDoc(ref);
-
-      if (snap.exists()) {
-        const data = snap.data();
-        document.getElementById("count").innerText = data.value;
-
-        const history = data.history || [];
-        renderHistory(history);
-      }
-    }
-
-    function renderHistory(history) {
-      const ul = document.getElementById("history");
-      ul.innerHTML = "";
-
-      history.slice().reverse().forEach(entry => {
-        const li = document.createElement("li");
-        li.innerText = entry.time;
-        ul.appendChild(li);
-      });
-    }
-
-    window.add = async function() {
-      const snap = await getDoc(ref);
-
-      let value = 0;
-      let history = [];
-
-      if (snap.exists()) {
-        value = snap.data().value;
-        history = snap.data().history || [];
-      }
-
-      value++;
-
-      history.push({
-        time: new Date().toLocaleString()
+      ["Bernd", "Basti", "Dietmar"].forEach(name => {
+        document.getElementById(name).innerText = data[name] || 0;
       });
 
-      await setDoc(ref, { value, history });
+      renderHistory(data.history || []);
+    }
+  }
 
-      load();
+  function renderHistory(history) {
+    const ul = document.getElementById("history");
+    ul.innerHTML = "";
+
+    history.slice().reverse().forEach(entry => {
+      const li = document.createElement("li");
+      li.innerText = `${entry.name} → ${entry.time}`;
+      ul.appendChild(li);
+    });
+  }
+
+  window.add = async function(name) {
+    const snap = await getDoc(ref);
+
+    let data = {
+      Bernd: 0,
+      Basti: 0,
+      Dietmar: 0,
+      history: []
     };
 
-    window.reset = async function() {
-      await setDoc(ref, { value: 0, history: [] });
-      load();
-    };
+    if (snap.exists()) {
+      data = snap.data();
+    }
+
+    data[name] = (data[name] || 0) + 1;
+
+    data.history.push({
+      name: name,
+      time: new Date().toLocaleString()
+    });
+
+    await setDoc(ref, data);
 
     load();
-  </script>
+  };
+
+  load();
+
+  // 🔗 Link-basierte Aktion
+  const params = new URLSearchParams(window.location.search);
+  const user = params.get("add");
+
+  if (user && ["Bernd", "Basti", "Dietmar"].includes(user)) {
+    add(user);
+  }
+</script>
+
 </body>
 </html>
