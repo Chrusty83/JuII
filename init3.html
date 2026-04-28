@@ -65,15 +65,13 @@
       margin: 30px auto;
     }
 
-    #adminActions { display:none; margin-top:10px; }
-
     input {
       padding: 8px;
       border-radius: 5px;
       border: none;
     }
 
-    /* Popup */
+    /* 💰 Popup */
     #popup {
       display: none;
       position: fixed;
@@ -86,8 +84,24 @@
 
     #popupBox {
       background: #222;
-      padding: 20px;
-      border-radius: 10px;
+      padding: 25px;
+      border-radius: 12px;
+      transition: transform 0.2s ease;
+    }
+
+    /* 🍺 Bezahlt Animation */
+    .paid {
+      transform: scale(1.15);
+      background: #00c853 !important;
+    }
+
+    .fadeOut {
+      animation: fadeOut 0.4s ease forwards;
+    }
+
+    @keyframes fadeOut {
+      0% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.7); }
     }
   </style>
 </head>
@@ -95,8 +109,6 @@
 <body>
 
 <h1>🍺 JUII Bierdeckel 🍺</h1>
-
-<div id="message"></div>
 
 <table>
   <thead>
@@ -115,25 +127,12 @@
   <canvas id="beerChart"></canvas>
 </div>
 
-<!-- 🔐 Admin -->
-<h2>Admin</h2>
-<input type="password" id="password">
-<button onclick="login()" class="add">Login</button>
-
-<div id="adminActions">
-  <button onclick="resetAll()" style="background:red;">Alles löschen</button>
-  <button onclick="clearHistory()" style="background:orange;">Verlauf löschen</button>
-
-  <h3>Verlauf</h3>
-  <ul id="history"></ul>
-</div>
-
 <!-- 💰 Popup -->
 <div id="popup">
   <div id="popupBox">
     <h2 id="popupName"></h2>
     <p id="popupSum"></p>
-    <button onclick="closePopup()" class="add">OK</button>
+    <button id="payBtn" onclick="confirmPay()" class="pay">Zahlen</button>
   </div>
 </div>
 
@@ -166,56 +165,14 @@ const names = [
 const price = 2;
 
 let last = {};
-let chart;
+let currentPerson = null;
 
 /* safe id */
 function safeId(n){
   return n.replace(/[^a-zA-Z0-9]/g,"");
 }
 
-/* chart */
-function renderChart(h){
-  const m = {};
-
-  h.forEach(e=>{
-    const d = new Date(e.time);
-    const k = `${d.getMonth()+1}/${d.getFullYear()}`;
-    m[k] = (m[k] || 0) + 1;
-  });
-
-  if(chart) chart.destroy();
-
-  chart = new Chart(document.getElementById("beerChart"), {
-    type: "bar",
-    data: {
-      labels: Object.keys(m),
-      datasets: [{ label: "Biere", data: Object.values(m) }]
-    }
-  });
-}
-
-/* QR FIX (stabil) */
-function renderQRs(){
-  const base = window.location.origin + window.location.pathname;
-
-  names.forEach(n=>{
-    const id = safeId(n);
-    const canvas = document.getElementById("qr-"+id);
-
-    if(!canvas) return;
-
-    QRCode.toCanvas(canvas, base + "?add=" + encodeURIComponent(n), {
-      width: 120,
-      margin: 1,
-      color: {
-        dark: "#000",
-        light: "#fff"
-      }
-    });
-  });
-}
-
-/* live firebase */
+/* LIVE */
 function listen(){
   onSnapshot(ref, snap=>{
     const d = snap.exists() ? snap.data() : { history: [] };
@@ -227,15 +184,10 @@ function listen(){
       const c = d[n] || 0;
       const id = safeId(n);
 
-      let beers = "🍺".repeat(c);
-
       tbody.innerHTML += `
         <tr>
           <td>${n}</td>
-          <td>
-            <div class="beers">${beers}</div>
-            <div class="price">${c * price} €</div>
-          </td>
+          <td>${"🍺".repeat(c)}<br><small>${c * price} €</small></td>
           <td>
             <button class="add" onclick="add('${n}')">+1</button>
             <button class="pay" onclick="pay('${n}')">Zahlen</button>
@@ -245,105 +197,83 @@ function listen(){
       `;
     });
 
-    renderHistory(d.history || []);
-    renderChart(d.history || []);
-
-    /* WICHTIG: QR nach DOM render */
-    requestAnimationFrame(()=>{
-      setTimeout(renderQRs, 80);
-    });
+    renderQRs();
   });
 }
 
-/* add */
+/* ADD */
 window.add = async function(name){
   const snap = await getDoc(ref);
-  const d = snap.exists() ? snap.data() : { history: [] };
+  const d = snap.data() || { history: [] };
 
   d[name] = (d[name] || 0) + 1;
-
-  d.history.push({
-    name,
-    time: new Date().toISOString()
-  });
 
   await setDoc(ref, d);
 };
 
-/* pay */
+/* PAY */
 window.pay = function(name){
+  currentPerson = name;
+
   const snap = getDoc(ref);
   snap.then(s=>{
     const d = s.data();
-    const c = d[name] || 0;
+    const count = d[name] || 0;
 
     document.getElementById("popupName").innerText = name;
-    document.getElementById("popupSum").innerText = `Zu zahlen: ${c * price} €`;
+    document.getElementById("popupSum").innerText = `Zu zahlen: ${count * price} €`;
 
     document.getElementById("popup").style.display = "flex";
   });
 };
 
-/* close popup (nur 1 person reset) */
-window.closePopup = async function(){
+/* 💥 CONFIRM PAY + ANIMATION */
+window.confirmPay = async function(){
   const snap = await getDoc(ref);
   const d = snap.data();
 
-  const name = document.getElementById("popupName").innerText;
-
-  if(name){
-    d[name] = 0;
+  if(currentPerson){
+    d[currentPerson] = 0;
+    await setDoc(ref, d);
   }
 
-  await setDoc(ref, d);
+  /* Animation */
+  const box = document.getElementById("popupBox");
+  const btn = document.getElementById("payBtn");
 
-  document.getElementById("popup").style.display = "none";
+  box.classList.add("paid");
+  btn.innerText = "✓ Bezahlt";
+
+  setTimeout(()=>{
+    document.getElementById("popup").style.display = "none";
+    box.classList.remove("paid");
+    btn.innerText = "Zahlen";
+  }, 600);
 };
 
-/* admin */
-window.login = function(){
-  if(document.getElementById("password").value === "admin"){
-    document.getElementById("adminActions").style.display = "block";
-  }
-};
+/* QR */
+function renderQRs(){
+  const base = window.location.origin + window.location.pathname;
 
-window.resetAll = async function(){
-  await setDoc(ref, { history: [] });
-};
+  names.forEach(n=>{
+    const id = safeId(n);
+    const canvas = document.getElementById("qr-"+id);
 
-window.clearHistory = async function(){
-  const snap = await getDoc(ref);
-  const d = snap.data();
-  d.history = [];
-  await setDoc(ref, d);
-};
-
-/* history */
-function renderHistory(h){
-  const ul = document.getElementById("history");
-  ul.innerHTML = "";
-
-  h.slice().reverse().forEach(e=>{
-    const li = document.createElement("li");
-    li.innerText = `${e.name} → ${e.time}`;
-    ul.appendChild(li);
+    if(canvas){
+      QRCode.toCanvas(canvas, base+"?add="+encodeURIComponent(n), {
+        width: 120
+      });
+    }
   });
 }
 
-/* scan */
+/* SCAN */
 const params = new URLSearchParams(window.location.search);
 const u = params.get("add");
 
 if(u && names.includes(u)){
   add(u);
-
-  document.getElementById("message").innerText =
-    `🍺 1 Bier für ${u}`;
-
-  if(navigator.vibrate){
-    navigator.vibrate([100,50,100]);
-  }
-
+  document.getElementById("message").innerText = `🍺 1 Bier für ${u}`;
   window.history.replaceState({}, "", window.location.pathname);
 }
 
