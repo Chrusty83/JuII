@@ -11,17 +11,12 @@
     body {
       background:#111;
       color:#fff;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      font-family:Arial;
       text-align:center;
     }
 
     h1 { font-size:32px; }
 
-    h2 {
-      margin-top:30px;
-    }
-
-    /* TABLE */
     table {
       margin:20px auto;
       border-collapse:collapse;
@@ -30,32 +25,26 @@
 
     th, td {
       border:1px solid #444;
-      padding:12px;
-      vertical-align:middle;
+      padding:10px;
+      font-size:14px;
+      vertical-align:top;
     }
 
-    th {
-      background:#222;
-    }
-
-    /* 👉 NAME STYLE FIX */
-    td:first-child {
-      font-size:16px;
-      font-weight:600;
-      letter-spacing:0.3px;
-      font-family: "Segoe UI", Roboto, Arial, sans-serif;
-    }
-
-    /* 👉 ROW HEIGHT FIX */
-    tr {
-      height:60px;
-    }
+    th { background:#222; }
 
     canvas {
       background:#fff;
       border-radius:8px;
       width:120px !important;
       height:120px !important;
+    }
+
+    #chartContainer {
+      width:95%;
+      margin:30px auto;
+      background:#1a1a1a;
+      padding:15px;
+      border-radius:10px;
     }
 
     button {
@@ -71,12 +60,6 @@
     .pay { background:#00c853; }
     .cancel { background:#777; }
 
-    #message {
-      color:#0f0;
-      margin:10px;
-    }
-
-    /* POPUP */
     #popup {
       display:none;
       position:fixed;
@@ -91,10 +74,8 @@
       background:#222;
       padding:20px;
       border-radius:10px;
-      min-width:260px;
     }
 
-    /* ADMIN */
     #adminActions {
       display:none;
       margin-top:15px;
@@ -105,14 +86,6 @@
       border-radius:5px;
       border:none;
     }
-
-    /* CHART */
-    canvas#monthChart {
-      background:#1a1a1a;
-      border-radius:10px;
-      padding:10px;
-      max-width:95%;
-    }
   </style>
 </head>
 
@@ -120,9 +93,7 @@
 
 <h1>🍺 JUII Bierdeckel 🍺</h1>
 
-<div id="message"></div>
-
-<!-- 🍺 TABELLE -->
+<!-- 🍺 TABLE -->
 <table>
   <thead>
     <tr>
@@ -134,11 +105,13 @@
   <tbody id="tableBody"></tbody>
 </table>
 
-<!-- 📊 CHART -->
-<h2>📊 Monatsübersicht</h2>
-<canvas id="monthChart"></canvas>
+<!-- 📊 DIAGRAMM (NEU) -->
+<div id="chartContainer">
+  <h2>📊 Bier pro Monat</h2>
+  <canvas id="beerChart"></canvas>
+</div>
 
-<!-- 📱 QR -->
+<!-- 📱 QR TABLE -->
 <h2>QR Codes</h2>
 <table>
   <tbody id="qrBody"></tbody>
@@ -197,12 +170,48 @@ const names = [
 
 const price = 2;
 
+let chart;
 let currentPerson = null;
-let monthChart;
 
-/* SAFE ID */
+/* SAFE */
 function safeId(n){
   return n.replace(/[^a-zA-Z0-9]/g,"");
+}
+
+/* 🍺 CHART (MONAT) */
+function renderChart(history){
+  const months = {};
+
+  (history || []).forEach(e=>{
+    const d = new Date(e.time);
+    const key = `${d.getMonth()+1}/${d.getFullYear()}`;
+    months[key] = (months[key] || 0) + 1;
+  });
+
+  const ctx = document.getElementById("beerChart");
+
+  if(chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: Object.keys(months),
+      datasets: [{
+        label: "Biere pro Monat",
+        data: Object.values(months),
+        backgroundColor: "#00c853"
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { labels: { color: "#fff" } }
+      },
+      scales: {
+        x: { ticks: { color:"#fff" } },
+        y: { ticks: { color:"#fff" } }
+      }
+    }
+  });
 }
 
 /* LIVE */
@@ -210,7 +219,6 @@ function listen(){
   onSnapshot(ref, snap=>{
     const d = snap.exists() ? snap.data() : { history: [] };
 
-    /* TABLE */
     const tbody = document.getElementById("tableBody");
     tbody.innerHTML = "";
 
@@ -231,7 +239,7 @@ function listen(){
 
     renderHistory(d.history || []);
     renderQRs();
-    renderMonthChart(d.history || []);
+    renderChart(d.history || []);
   });
 }
 
@@ -313,42 +321,7 @@ function renderQRs(){
         });
       }
     });
-  },150);
-}
-
-/* CHART */
-function renderMonthChart(history){
-  const map = {};
-
-  (history || []).forEach(e=>{
-    const d = new Date(e.time);
-    const k = `${d.getMonth()+1}/${d.getFullYear()}`;
-    map[k] = (map[k] || 0) + 1;
-  });
-
-  if(monthChart) monthChart.destroy();
-
-  const ctx = document.getElementById("monthChart");
-
-  monthChart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: Object.keys(map),
-      datasets: [{
-        label: "🍺 Biere pro Monat",
-        data: Object.values(map)
-      }]
-    },
-    options: {
-      scales: {
-        x: { ticks: { color:"#fff" }, grid:{ color:"#333" } },
-        y: { ticks: { color:"#fff" }, grid:{ color:"#333" } }
-      },
-      plugins: {
-        legend: { labels: { color:"#fff" } }
-      }
-    }
-  });
+  },200);
 }
 
 /* ADMIN */
@@ -387,7 +360,6 @@ const u = params.get("add");
 
 if(u && names.includes(u)){
   add(u);
-  document.getElementById("message").innerText = `🍺 1 Bier für ${u}`;
   window.history.replaceState({}, "", window.location.pathname);
 }
 
