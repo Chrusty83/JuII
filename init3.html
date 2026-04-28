@@ -5,17 +5,23 @@
   <title>JUII Bierdeckel</title>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     body {
       background:#111;
       color:#fff;
-      font-family:Arial;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
       text-align:center;
     }
 
     h1 { font-size:32px; }
 
+    h2 {
+      margin-top:30px;
+    }
+
+    /* TABLE */
     table {
       margin:20px auto;
       border-collapse:collapse;
@@ -24,12 +30,26 @@
 
     th, td {
       border:1px solid #444;
-      padding:10px;
-      font-size:14px;
-      vertical-align:top;
+      padding:12px;
+      vertical-align:middle;
     }
 
-    th { background:#222; }
+    th {
+      background:#222;
+    }
+
+    /* 👉 NAME STYLE FIX */
+    td:first-child {
+      font-size:16px;
+      font-weight:600;
+      letter-spacing:0.3px;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    /* 👉 ROW HEIGHT FIX */
+    tr {
+      height:60px;
+    }
 
     canvas {
       background:#fff;
@@ -71,11 +91,27 @@
       background:#222;
       padding:20px;
       border-radius:10px;
-      min-width:250px;
+      min-width:260px;
     }
 
-    #qrTable {
-      margin-top:40px;
+    /* ADMIN */
+    #adminActions {
+      display:none;
+      margin-top:15px;
+    }
+
+    input {
+      padding:8px;
+      border-radius:5px;
+      border:none;
+    }
+
+    /* CHART */
+    canvas#monthChart {
+      background:#1a1a1a;
+      border-radius:10px;
+      padding:10px;
+      max-width:95%;
     }
   </style>
 </head>
@@ -86,7 +122,7 @@
 
 <div id="message"></div>
 
-<!-- HAUPTTABELLE -->
+<!-- 🍺 TABELLE -->
 <table>
   <thead>
     <tr>
@@ -98,13 +134,31 @@
   <tbody id="tableBody"></tbody>
 </table>
 
-<!-- QR CODE TABELLE (NEU) -->
+<!-- 📊 CHART -->
+<h2>📊 Monatsübersicht</h2>
+<canvas id="monthChart"></canvas>
+
+<!-- 📱 QR -->
 <h2>QR Codes</h2>
-<table id="qrTable">
+<table>
   <tbody id="qrBody"></tbody>
 </table>
 
-<!-- POPUP -->
+<!-- 🔐 ADMIN -->
+<h2>Admin</h2>
+
+<input type="password" id="password">
+<button onclick="login()" class="add">Login</button>
+
+<div id="adminActions">
+  <button onclick="resetAll()" style="background:red;">Alles löschen</button>
+  <button onclick="clearHistory()" style="background:orange;">Verlauf löschen</button>
+
+  <h3>Verlauf</h3>
+  <ul id="history"></ul>
+</div>
+
+<!-- 💰 POPUP -->
 <div id="popup">
   <div id="popupBox">
     <h3 id="popupName"></h3>
@@ -144,6 +198,7 @@ const names = [
 const price = 2;
 
 let currentPerson = null;
+let monthChart;
 
 /* SAFE ID */
 function safeId(n){
@@ -153,7 +208,7 @@ function safeId(n){
 /* LIVE */
 function listen(){
   onSnapshot(ref, snap=>{
-    const d = snap.exists() ? snap.data() : {};
+    const d = snap.exists() ? snap.data() : { history: [] };
 
     /* TABLE */
     const tbody = document.getElementById("tableBody");
@@ -174,21 +229,28 @@ function listen(){
       `;
     });
 
+    renderHistory(d.history || []);
     renderQRs();
+    renderMonthChart(d.history || []);
   });
 }
 
 /* ADD */
 window.add = async function(name){
   const snap = await getDoc(ref);
-  const d = snap.data() || {};
+  const d = snap.data() || { history: [] };
 
   d[name] = (d[name] || 0) + 1;
+
+  d.history.push({
+    name,
+    time: new Date().toISOString()
+  });
 
   await setDoc(ref, d);
 };
 
-/* PAY -> POPUP OPEN */
+/* PAY */
 window.pay = function(name){
   currentPerson = name;
 
@@ -204,7 +266,7 @@ window.pay = function(name){
   });
 };
 
-/* CONFIRM PAY */
+/* CONFIRM */
 window.confirmPay = async function(){
   const snap = await getDoc(ref);
   const d = snap.data();
@@ -217,12 +279,12 @@ window.confirmPay = async function(){
   document.getElementById("popup").style.display = "none";
 };
 
-/* CLOSE POPUP */
+/* CLOSE */
 window.closePopup = function(){
   document.getElementById("popup").style.display = "none";
 };
 
-/* QR TABLE */
+/* QR */
 function renderQRs(){
   const base = window.location.origin + window.location.pathname;
 
@@ -251,7 +313,72 @@ function renderQRs(){
         });
       }
     });
-  },200);
+  },150);
+}
+
+/* CHART */
+function renderMonthChart(history){
+  const map = {};
+
+  (history || []).forEach(e=>{
+    const d = new Date(e.time);
+    const k = `${d.getMonth()+1}/${d.getFullYear()}`;
+    map[k] = (map[k] || 0) + 1;
+  });
+
+  if(monthChart) monthChart.destroy();
+
+  const ctx = document.getElementById("monthChart");
+
+  monthChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: Object.keys(map),
+      datasets: [{
+        label: "🍺 Biere pro Monat",
+        data: Object.values(map)
+      }]
+    },
+    options: {
+      scales: {
+        x: { ticks: { color:"#fff" }, grid:{ color:"#333" } },
+        y: { ticks: { color:"#fff" }, grid:{ color:"#333" } }
+      },
+      plugins: {
+        legend: { labels: { color:"#fff" } }
+      }
+    }
+  });
+}
+
+/* ADMIN */
+window.login = function(){
+  if(document.getElementById("password").value === "admin"){
+    document.getElementById("adminActions").style.display = "block";
+  }
+};
+
+window.resetAll = async function(){
+  await setDoc(ref, { history: [] });
+};
+
+window.clearHistory = async function(){
+  const snap = await getDoc(ref);
+  const d = snap.data();
+  d.history = [];
+  await setDoc(ref, d);
+};
+
+/* HISTORY */
+function renderHistory(h){
+  const ul = document.getElementById("history");
+  ul.innerHTML = "";
+
+  (h || []).slice().reverse().forEach(e=>{
+    const li = document.createElement("li");
+    li.innerText = `${e.name} → ${e.time}`;
+    ul.appendChild(li);
+  });
 }
 
 /* SCAN */
