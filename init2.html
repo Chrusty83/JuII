@@ -3,18 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <title>Strichliste</title>
+
+  <!-- QR-Code Library -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
   <style>
     body {
       background-color: #111;
       color: #fff;
-      font-family: Arial, sans-serif;
+      font-family: Arial;
       text-align: center;
     }
 
     table {
       margin: 20px auto;
       border-collapse: collapse;
-      width: 60%;
+      width: 80%;
     }
 
     th, td {
@@ -26,6 +30,16 @@
       background-color: #222;
     }
 
+    .qr {
+      margin-top: 10px;
+    }
+
+    canvas {
+      background: white;
+      padding: 5px;
+      border-radius: 8px;
+    }
+
     button {
       padding: 8px 16px;
       background-color: #0a84ff;
@@ -34,22 +48,9 @@
       cursor: pointer;
       border-radius: 6px;
     }
-
-    button:hover {
-      background-color: #0066cc;
-    }
-
-    ul {
-      list-style: none;
-      padding: 0;
-    }
-
-    li {
-      font-size: 12px;
-      color: #aaa;
-    }
   </style>
 </head>
+
 <body>
 
 <h1>Strichliste</h1>
@@ -59,24 +60,28 @@
     <th>Name</th>
     <th>Striche</th>
     <th>Aktion</th>
+    <th>QR-Code</th>
   </tr>
 
   <tr>
     <td>Bernd</td>
     <td id="Bernd">0</td>
     <td><button onclick="add('Bernd')">+1</button></td>
+    <td><canvas id="qr-Bernd"></canvas></td>
   </tr>
 
   <tr>
     <td>Basti</td>
     <td id="Basti">0</td>
     <td><button onclick="add('Basti')">+1</button></td>
+    <td><canvas id="qr-Basti"></canvas></td>
   </tr>
 
   <tr>
     <td>Dietmar</td>
     <td id="Dietmar">0</td>
     <td><button onclick="add('Dietmar')">+1</button></td>
+    <td><canvas id="qr-Dietmar"></canvas></td>
   </tr>
 </table>
 
@@ -103,13 +108,15 @@
 
   const ref = doc(db, "strichliste", "main");
 
+  const names = ["Bernd", "Basti", "Dietmar"];
+
   async function load() {
     const snap = await getDoc(ref);
 
     if (snap.exists()) {
       const data = snap.data();
 
-      ["Bernd", "Basti", "Dietmar"].forEach(name => {
+      names.forEach(name => {
         document.getElementById(name).innerText = data[name] || 0;
       });
 
@@ -156,11 +163,24 @@
 
   load();
 
-  // 🔗 Link-basierte Aktion
+  // 🔗 QR-Code Links generieren
+  const baseUrl = window.location.origin + window.location.pathname;
+
+  names.forEach(name => {
+    const url = baseUrl + "?add=" + name;
+
+    QRCode.toCanvas(
+      document.getElementById("qr-" + name),
+      url,
+      { width: 100 }
+    );
+  });
+
+  // 🔗 Auto-Add wenn über Link geöffnet
   const params = new URLSearchParams(window.location.search);
   const user = params.get("add");
 
-  if (user && ["Bernd", "Basti", "Dietmar"].includes(user)) {
+  if (user && names.includes(user)) {
     add(user);
   }
 </script>
