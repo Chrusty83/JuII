@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Strichliste</title>
+  <title>JUII Bierliste</title>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
@@ -40,6 +40,11 @@
       color: #aaa;
     }
 
+    .beers {
+      font-size: 18px;
+      word-break: break-all;
+    }
+
     button {
       padding: 8px 16px;
       background-color: #0a84ff;
@@ -54,19 +59,29 @@
       font-size: 20px;
       color: #0f0;
     }
+
+    #adminPanel {
+      margin-top: 30px;
+    }
+
+    input {
+      padding: 8px;
+      border-radius: 5px;
+      border: none;
+    }
   </style>
 </head>
 
 <body>
 
-<h1>Strichliste</h1>
+<h1>🍺 JUII Bierliste 🍺</h1>
 
 <div id="message"></div>
 
 <table>
   <tr>
     <th>Name</th>
-    <th>Striche</th>
+    <th>Biere</th>
     <th>Aktion</th>
     <th>QR-Code</th>
   </tr>
@@ -96,9 +111,20 @@
 <h2>Verlauf</h2>
 <ul id="history"></ul>
 
+<!-- 🔐 Admin Bereich -->
+<div id="adminPanel">
+  <h2>Admin</h2>
+  <input type="password" id="password" placeholder="Passwort">
+  <button onclick="login()">Login</button>
+
+  <div id="adminActions" style="display:none; margin-top:10px;">
+    <button onclick="resetAll()" style="background:red;">🧹 Alles löschen</button>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
   apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
@@ -119,6 +145,10 @@
   const names = ["Bernd", "Basti", "Dietmar"];
   const pricePerBeer = 2;
 
+  function renderBeers(count) {
+    return "🍺".repeat(count);
+  }
+
   async function load() {
     const snap = await getDoc(ref);
 
@@ -138,8 +168,8 @@
       const price = count * pricePerBeer;
 
       document.getElementById(name).innerHTML = `
-        ${count}<br>
-        <span class="price">(${price} €)</span>
+        <div class="beers">${renderBeers(count)}</div>
+        <div class="price">(${price} €)</div>
       `;
     });
 
@@ -185,7 +215,7 @@
 
   load();
 
-  // QR-Codes
+  // QR Codes
   const baseUrl = window.location.origin + window.location.pathname;
 
   names.forEach(name => {
@@ -198,7 +228,7 @@
     );
   });
 
-  // Auto-Add + Anzeige + Reset
+  // Auto Add + Anzeige + Reset
   const params = new URLSearchParams(window.location.search);
   const user = params.get("add");
 
@@ -214,6 +244,31 @@
       window.location.href = window.location.pathname;
     }, 3000);
   }
+
+  // 🔐 LOGIN
+  window.login = function() {
+    const pw = document.getElementById("password").value;
+
+    if (pw === "admin") {
+      document.getElementById("adminActions").style.display = "block";
+    } else {
+      alert("Falsches Passwort");
+    }
+  };
+
+  // 🧹 ALLES LÖSCHEN
+  window.resetAll = async function() {
+    if (confirm("Wirklich alles löschen?")) {
+      await setDoc(ref, {
+        Bernd: 0,
+        Basti: 0,
+        Dietmar: 0,
+        history: []
+      });
+
+      load();
+    }
+  };
 </script>
 
 </body>
