@@ -5,103 +5,77 @@
   <title>JUII Bierdeckel</title>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     body {
-      background-color: #111;
-      color: #fff;
-      font-family: Arial;
-      text-align: center;
+      background:#111;
+      color:#fff;
+      font-family:Arial;
+      text-align:center;
     }
 
-    h1 { font-size: 32px; }
+    h1 { font-size:32px; }
 
     table {
-      margin: 20px auto;
-      border-collapse: collapse;
-      width: 95%;
+      margin:20px auto;
+      border-collapse:collapse;
+      width:95%;
     }
 
     th, td {
-      border: 1px solid #444;
-      padding: 10px;
-      font-size: 14px;
-      vertical-align: top;
+      border:1px solid #444;
+      padding:10px;
+      font-size:14px;
+      vertical-align:top;
     }
 
-    th { background-color: #222; }
+    th { background:#222; }
 
     canvas {
-      background: #fff;
-      border-radius: 8px;
-      width: 120px !important;
-      height: 120px !important;
+      background:#fff;
+      border-radius:8px;
+      width:120px !important;
+      height:120px !important;
     }
-
-    .beers { font-size: 22px; }
-    .price { font-size: 12px; color: #aaa; }
 
     button {
-      padding: 10px 14px;
-      border: none;
-      border-radius: 6px;
-      color: white;
-      cursor: pointer;
-      margin: 2px;
+      padding:10px 14px;
+      border:none;
+      border-radius:6px;
+      color:#fff;
+      cursor:pointer;
+      margin:2px;
     }
 
-    .add { background: #0a84ff; }
-    .pay { background: #00c853; }
+    .add { background:#0a84ff; }
+    .pay { background:#00c853; }
+    .cancel { background:#777; }
 
     #message {
-      margin: 15px;
-      font-size: 18px;
-      color: #0f0;
+      color:#0f0;
+      margin:10px;
     }
 
-    #chartContainer {
-      width: 95%;
-      margin: 30px auto;
-    }
-
-    input {
-      padding: 8px;
-      border-radius: 5px;
-      border: none;
-    }
-
-    /* 💰 Popup */
+    /* POPUP */
     #popup {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.85);
-      align-items: center;
-      justify-content: center;
+      display:none;
+      position:fixed;
+      top:0; left:0;
+      width:100%; height:100%;
+      background:rgba(0,0,0,0.85);
+      align-items:center;
+      justify-content:center;
     }
 
     #popupBox {
-      background: #222;
-      padding: 25px;
-      border-radius: 12px;
-      transition: transform 0.2s ease;
+      background:#222;
+      padding:20px;
+      border-radius:10px;
+      min-width:250px;
     }
 
-    /* 🍺 Bezahlt Animation */
-    .paid {
-      transform: scale(1.15);
-      background: #00c853 !important;
-    }
-
-    .fadeOut {
-      animation: fadeOut 0.4s ease forwards;
-    }
-
-    @keyframes fadeOut {
-      0% { opacity: 1; transform: scale(1); }
-      100% { opacity: 0; transform: scale(0.7); }
+    #qrTable {
+      margin-top:40px;
     }
   </style>
 </head>
@@ -110,29 +84,34 @@
 
 <h1>🍺 JUII Bierdeckel 🍺</h1>
 
+<div id="message"></div>
+
+<!-- HAUPTTABELLE -->
 <table>
   <thead>
     <tr>
       <th>Name</th>
       <th>Biere</th>
       <th>Aktion</th>
-      <th>QR</th>
     </tr>
   </thead>
   <tbody id="tableBody"></tbody>
 </table>
 
-<div id="chartContainer">
-  <h2>Monatsübersicht</h2>
-  <canvas id="beerChart"></canvas>
-</div>
+<!-- QR CODE TABELLE (NEU) -->
+<h2>QR Codes</h2>
+<table id="qrTable">
+  <tbody id="qrBody"></tbody>
+</table>
 
-<!-- 💰 Popup -->
+<!-- POPUP -->
 <div id="popup">
   <div id="popupBox">
-    <h2 id="popupName"></h2>
+    <h3 id="popupName"></h3>
     <p id="popupSum"></p>
-    <button id="payBtn" onclick="confirmPay()" class="pay">Zahlen</button>
+
+    <button class="pay" onclick="confirmPay()">Zahlen</button>
+    <button class="cancel" onclick="closePopup()">Abbrechen</button>
   </div>
 </div>
 
@@ -164,10 +143,9 @@ const names = [
 
 const price = 2;
 
-let last = {};
 let currentPerson = null;
 
-/* safe id */
+/* SAFE ID */
 function safeId(n){
   return n.replace(/[^a-zA-Z0-9]/g,"");
 }
@@ -175,24 +153,23 @@ function safeId(n){
 /* LIVE */
 function listen(){
   onSnapshot(ref, snap=>{
-    const d = snap.exists() ? snap.data() : { history: [] };
+    const d = snap.exists() ? snap.data() : {};
 
+    /* TABLE */
     const tbody = document.getElementById("tableBody");
     tbody.innerHTML = "";
 
     names.forEach(n=>{
       const c = d[n] || 0;
-      const id = safeId(n);
 
       tbody.innerHTML += `
         <tr>
           <td>${n}</td>
-          <td>${"🍺".repeat(c)}<br><small>${c * price} €</small></td>
+          <td>${"🍺".repeat(c)}<br>${c * price} €</td>
           <td>
             <button class="add" onclick="add('${n}')">+1</button>
             <button class="pay" onclick="pay('${n}')">Zahlen</button>
           </td>
-          <td><canvas id="qr-${id}"></canvas></td>
         </tr>
       `;
     });
@@ -204,30 +181,30 @@ function listen(){
 /* ADD */
 window.add = async function(name){
   const snap = await getDoc(ref);
-  const d = snap.data() || { history: [] };
+  const d = snap.data() || {};
 
   d[name] = (d[name] || 0) + 1;
 
   await setDoc(ref, d);
 };
 
-/* PAY */
+/* PAY -> POPUP OPEN */
 window.pay = function(name){
   currentPerson = name;
 
-  const snap = getDoc(ref);
-  snap.then(s=>{
-    const d = s.data();
-    const count = d[name] || 0;
+  getDoc(ref).then(snap=>{
+    const d = snap.data();
+    const c = d[name] || 0;
 
     document.getElementById("popupName").innerText = name;
-    document.getElementById("popupSum").innerText = `Zu zahlen: ${count * price} €`;
+    document.getElementById("popupSum").innerText =
+      `Zu zahlen: ${c * price} €`;
 
     document.getElementById("popup").style.display = "flex";
   });
 };
 
-/* 💥 CONFIRM PAY + ANIMATION */
+/* CONFIRM PAY */
 window.confirmPay = async function(){
   const snap = await getDoc(ref);
   const d = snap.data();
@@ -237,34 +214,44 @@ window.confirmPay = async function(){
     await setDoc(ref, d);
   }
 
-  /* Animation */
-  const box = document.getElementById("popupBox");
-  const btn = document.getElementById("payBtn");
-
-  box.classList.add("paid");
-  btn.innerText = "✓ Bezahlt";
-
-  setTimeout(()=>{
-    document.getElementById("popup").style.display = "none";
-    box.classList.remove("paid");
-    btn.innerText = "Zahlen";
-  }, 600);
+  document.getElementById("popup").style.display = "none";
 };
 
-/* QR */
+/* CLOSE POPUP */
+window.closePopup = function(){
+  document.getElementById("popup").style.display = "none";
+};
+
+/* QR TABLE */
 function renderQRs(){
   const base = window.location.origin + window.location.pathname;
 
+  const qrBody = document.getElementById("qrBody");
+  qrBody.innerHTML = "";
+
   names.forEach(n=>{
     const id = safeId(n);
-    const canvas = document.getElementById("qr-"+id);
 
-    if(canvas){
-      QRCode.toCanvas(canvas, base+"?add="+encodeURIComponent(n), {
-        width: 120
-      });
-    }
+    qrBody.innerHTML += `
+      <tr>
+        <td>${n}</td>
+        <td><canvas id="qr-${id}"></canvas></td>
+      </tr>
+    `;
   });
+
+  setTimeout(()=>{
+    names.forEach(n=>{
+      const id = safeId(n);
+      const canvas = document.getElementById("qr-"+id);
+
+      if(canvas){
+        QRCode.toCanvas(canvas, base+"?add="+encodeURIComponent(n), {
+          width:120
+        });
+      }
+    });
+  },200);
 }
 
 /* SCAN */
