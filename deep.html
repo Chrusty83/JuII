@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>JUII Bierdeckel – Gemeinsame Strichliste</title>
+  <title>JUII Bierdeckel – Strichliste mit QR & Chart</title>
   <!-- QR Code & Chart libraries -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -288,8 +288,8 @@
     <p style="margin:10px 0 0;">offene Rechnung:</p>
     <p id="popupSum"></p>
     <div style="margin-top: 24px;">
-      <button class="pay" onclick="confirmPay()">✅ Zahlen & löschen</button>
-      <button class="cancel" onclick="closePopup()">❌ Abbrechen</button>
+      <button class="pay" id="confirmPayBtn">✅ Zahlen & löschen</button>
+      <button class="cancel" id="closePopupBtn">❌ Abbrechen</button>
     </div>
   </div>
 </div>
@@ -298,10 +298,7 @@
 
 <script type="module">
   // ----------------------------- FIREBASE KONFIGURATION -----------------------------
-  // Achtung: Hier müssten Sie Ihre eigenen Firebase credentials einfügen.
-  // Für das DEMO verwenden wir einen öffentlichen Test-Zugang mit einer Demo-Datenbank.
-  // Bitte ersetzen Sie diese Config durch Ihre eigene Firestore-Instanz.
-  // Diese Config ist nur für Vorführzwecke – bei produktiver Nutzung eigene Datenbank einrichten!
+  // Demo-Konfiguration – für echtes Projekt bitte durch eigene Firebase Credentials ersetzen.
   const firebaseConfig = {
     apiKey: "AIzaSyB_sL8l2X5aGZRMRwaHc7yYcUhPA9Y5R-k",
     authDomain: "juii-bierdeckel.firebaseapp.com",
@@ -310,10 +307,7 @@
     messagingSenderId: "1086212393044",
     appId: "1:1086212393044:web:2f3a4b5c6d7e8f9a0b1c2"
   };
-  // HINWEIS: Dies ist eine Platzhalter-Konfiguration, bitte durch echte Firebase-Projekt-Daten ersetzen.
-  // Falls Sie kein Firebase nutzen möchten, kann die App nur im lokalen Speicher laufen, 
-  // aber für echte Mehrbenutzer-Synchronisation ist Firebase notwendig.
-  // Für dieses Live-Beispiel verwenden wir eine reale Test-Datenbank (Demo only).
+  // WICHTIG: Bitte durch eigene Firebase-Projekt-Daten ersetzen! Für Livebetrieb unbedingt eigene Datenbank nutzen.
 
   import { initializeApp } from "firebase/app";
   import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
@@ -330,7 +324,7 @@
     "Schwob","Tim","Timo","Tom"
   ];
 
-  const BEER_PRICE = 2.00;  // Euro pro Bier
+  const BEER_PRICE = 2.00;
   let beerChart = null;
   let currentPayPerson = null;
 
@@ -412,7 +406,6 @@
       historyList.appendChild(li);
       return;
     }
-    // neueste zuerst anzeigen (reverse)
     [...historyArray].reverse().forEach(entry => {
       const li = document.createElement('li');
       const timeStr = entry.time ? new Date(entry.time).toLocaleString('de-DE') : 'unbekannt';
@@ -421,7 +414,7 @@
     });
   }
 
-  // Haupt-UI erzeugen: Tabelle mit Namen, Bieranzahl, Summe und Buttons
+  // Haupt-UI: Tabelle mit Bieranzahl & Buttons
   function renderMainTable(data) {
     const tbody = document.getElementById('tableBody');
     if (!tbody) return;
@@ -429,7 +422,12 @@
     for (let name of names) {
       const count = data[name] || 0;
       const totalEur = (count * BEER_PRICE).toFixed(2);
-      const beerIcons = count > 0 ? "🍺".repeat(Math.min(count, 20)) + (count > 20 ? ` +${count-20}` : "") : "—";
+      let beerIcons = "—";
+      if (count > 0) {
+        const iconCount = Math.min(count, 25);
+        beerIcons = "🍺".repeat(iconCount);
+        if (count > 25) beerIcons += ` +${count-25}`;
+      }
       const row = document.createElement('tr');
       row.innerHTML = `
         <td style="font-weight:500;">${name}</td>
@@ -442,7 +440,7 @@
       tbody.appendChild(row);
     }
 
-    // Event-Listener dynamisch anbinden (wegen onSnapshot)
+    // Event-Listener für "add" und "pay" (dynamisch)
     document.querySelectorAll('.add').forEach(btn => {
       const name = btn.getAttribute('data-name');
       if (name) {
@@ -468,7 +466,7 @@
     });
   }
 
-  // QR-Code Tabelle rendern
+  // QR-Code Tabelle rendern (einmalig plus bei Bedarf)
   function renderQRTable() {
     const qrBody = document.getElementById('qrBody');
     if (!qrBody) return;
@@ -484,7 +482,6 @@
       qrBody.appendChild(row);
     });
 
-    // QR asynchron generieren
     setTimeout(() => {
       names.forEach(name => {
         const id = safeId(name);
@@ -501,20 +498,18 @@
     }, 100);
   }
 
-  // Firebase Live-Listener
+  // Firestore Live-Listener
   function startFirebaseListener() {
     onSnapshot(mainDoc, (snapshot) => {
       let data = {};
       let historyArray = [];
       if (snapshot.exists()) {
         const snapData = snapshot.data();
-        // extrahiere alle Namen + mögliche felder
         for (let name of names) {
           data[name] = typeof snapData[name] === 'number' ? snapData[name] : 0;
         }
         historyArray = Array.isArray(snapData.history) ? snapData.history : [];
       } else {
-        // initiales Dokument anlegen (optional)
         const initObj = { history: [] };
         names.forEach(n => initObj[n] = 0);
         setDoc(mainDoc, initObj).catch(e => console.warn(e));
@@ -524,7 +519,6 @@
       renderMonthlyChart(historyArray);
     }, (error) => {
       console.error("Firestore Fehler:", error);
-      // Fallback UI bei Fehlern: zeige leere Tabelle mit Hinweis
       const tbody = document.getElementById('tableBody');
       if(tbody) tbody.innerHTML = '<tr><td colspan="3">⚠️ Verbindungsproblem – bitte später neu laden</td></tr>';
     });
@@ -545,11 +539,11 @@
       await setDoc(mainDoc, updateObj);
     } catch (err) {
       console.error("Fehler beim Addieren:", err);
-      alert("Bier konnte nicht gebucht werden. Netzwerk/Firebase prüfen.");
+      alert("Bier konnte nicht gebucht werden. Netzwerk prüfen.");
     }
   }
 
-  // Popup öffnen
+  // Popup öffnen (Zahlungsdialog)
   function openPayPopup(name) {
     currentPayPerson = name;
     getDoc(mainDoc).then(snap => {
@@ -567,19 +561,17 @@
     });
   }
 
-  // Zahlung bestätigen: setze Bieranzahl auf 0
-  window.confirmPay = async function() {
+  // ** WICHTIG: Zahlung bestätigen - setzt Bier auf 0 und schließt das Popup zuverlässig **
+  async function confirmPayment() {
     if (!currentPayPerson) {
-      closePopup();
+      closePopupDirect();
       return;
     }
     try {
       const docSnap = await getDoc(mainDoc);
       if (docSnap.exists()) {
         const currentData = docSnap.data();
-        // setze counter auf 0 (Bezahlt)
         const updatedData = { ...currentData, [currentPayPerson]: 0 };
-        // Wichtig: Verlauf bleibt bestehen (wir löschen die offenen Biere, aber historische Einträge bleiben)
         await setDoc(mainDoc, updatedData);
       } else {
         const freshData = { history: [] };
@@ -590,18 +582,28 @@
     } catch (error) {
       console.error("Bezahl-Fehler:", error);
       alert("Zahlung konnte nicht gespeichert werden.");
+    } finally {
+      // Popup in jedem Fall schließen (auch bei Fehler, um UI-Zustand zu bereinigen)
+      closePopupDirect();
     }
-    closePopup();
-  };
+  }
 
-  window.closePopup = function() {
-    document.getElementById('popup').style.display = 'none';
+  // saubere Popup-Schließfunktion
+  function closePopupDirect() {
+    const popupElem = document.getElementById('popup');
+    if (popupElem) {
+      popupElem.style.display = 'none';
+    }
     currentPayPerson = null;
-  };
+  }
 
-  // Admin: Alle Bierstände auf 0 setzen (ohne History zu löschen)
+  // Globale Referenzen (für inline onclicks aus Sicherheit zusätzlich)
+  window.confirmPay = confirmPayment;   // falls irgendwo onlick genutzt
+  window.closePopup = closePopupDirect;
+
+  // Admin-Funktionen
   window.resetAll = async function() {
-    if (confirm("⚠️ Wirklich ALLE Biere auf Null setzen? Die offenen Beträge werden gelöscht. Verlauf bleibt erhalten.")) {
+    if (confirm("⚠️ Wirklich ALLE offenen Biere auf Null setzen? Verlauf bleibt erhalten.")) {
       const snap = await getDoc(mainDoc);
       const currentData = snap.exists() ? snap.data() : { history: [] };
       const resetData = { ...currentData };
@@ -612,9 +614,8 @@
     }
   };
 
-  // nur Verlauf löschen, Biere bleiben erhalten
   window.clearHistory = async function() {
-    if (confirm("Verlauf wirklich komplett löschen? Die aktuellen Bierstände bleiben erhalten.")) {
+    if (confirm("Verlauf komplett löschen? Aktuelle Bierstände bleiben bestehen.")) {
       const snap = await getDoc(mainDoc);
       const currentData = snap.exists() ? snap.data() : { history: [] };
       const newData = { ...currentData, history: [] };
@@ -622,7 +623,6 @@
     }
   };
 
-  // Admin Login
   window.login = function() {
     const pwdInput = document.getElementById('password');
     if (pwdInput.value === "admin") {
@@ -633,38 +633,56 @@
     }
   };
 
-  // URL-Parameter auswerten: ?add=Name -> Sofort +1 Bier hinzufügen
+  // URL-Parameter auswerten: ?add=Name -> sofort Bier addieren
   function handleUrlParam() {
     const params = new URLSearchParams(window.location.search);
     const addParam = params.get('add');
     if (addParam && names.includes(addParam)) {
       addBeer(addParam).then(() => {
-        // Parameter aus URL entfernen, ohne Seite neu zu laden
         const newUrl = window.location.pathname;
         window.history.replaceState({}, document.title, newUrl);
       }).catch(console.warn);
     }
   }
 
-  // zusätzlich QR Table neu rendern bei Änderung der Listener nach Sync
-  function renderFullUI() {
-    renderQRTable();
+  // Event-Listener für die Popup-Buttons manuell setzen (zusätzlich zu globalen Funktionen)
+  function bindPopupEvents() {
+    const confirmBtn = document.getElementById('confirmPayBtn');
+    const cancelBtn = document.getElementById('closePopupBtn');
+    if (confirmBtn) {
+      // Alte Listener entfernen, doppelte vermeiden
+      const newConfirm = confirmBtn.cloneNode(true);
+      confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+      newConfirm.addEventListener('click', (e) => {
+        e.preventDefault();
+        confirmPayment();
+      });
+    }
+    if (cancelBtn) {
+      const newCancel = cancelBtn.cloneNode(true);
+      cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+      newCancel.addEventListener('click', (e) => {
+        e.preventDefault();
+        closePopupDirect();
+      });
+    }
   }
 
-  // Alles initialisieren
+  // QR-Tabelle rendern (einmal initial)
   function init() {
     startFirebaseListener();
     renderQRTable();
     handleUrlParam();
-    // periodisch (nach updates) QR frisch halten? Nein – einmal reicht, da QR statisch bleibt.
-    // Zusätzlich bei jedem Tabellen-Update wird QR NICHT überschrieben, aber wir rufen es nochmal sicher auf nach anfänglichem Sync
+    bindPopupEvents();
+    // Falls QR nachladen (bei asynchronen Problemen)
     setTimeout(() => {
       renderQRTable();
-    }, 600);
+      bindPopupEvents(); // erneutes Binden sichert die Funktionalität
+    }, 500);
   }
 
-  // Für die manuelle onSnapshot wird auch main table aktualisiert; QR nur einmal initial.
-  // Aber falls jemand QR manuell refresh möchte -> übernehm.
+  // Zusätzlich: wenn neue QR-Codes durch dynamisches Rendern überschrieben werden, brauchen wir keine doppelten Events
+  // Die Popup-Bindung ist sicher.
   init();
 </script>
 </body>
