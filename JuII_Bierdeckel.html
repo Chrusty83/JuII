@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>JUII Bierdeckel – Strichliste mit QR & Chart</title>
+  <!-- QR Code & Chart libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Firebase Modular SDK (v10) -->
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"
+      }
+    }
+  </script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #111;
+      color: #f0f0f0;
+      font-family: 'Segoe UI', Roboto, system-ui, -apple-system, Arial, sans-serif;
+      margin: 0;
+      padding: 20px 12px 40px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin: 0 0 0.25rem;
+      background: linear-gradient(135deg, #f9b43a, #ffd966);
+      background-clip: text;
+      -webkit-background-clip: text;
+      color: transparent;
+      letter-spacing: 1px;
+    }
+
+    h2, h3 {
+      font-weight: 500;
+      margin: 1rem 0 0.75rem;
+      color: #ffd966;
+    }
+
+    .glass-card {
+      background: rgba(30,30,40,0.85);
+      backdrop-filter: blur(2px);
+      border-radius: 28px;
+      padding: 16px 12px;
+      margin: 20px 0;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+      border: 1px solid #2c2c3a;
+    }
+
+    table {
+      margin: 16px auto;
+      border-collapse: collapse;
+      width: 100%;
+      max-width: 1300px;
+      background: #1e1e2a;
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    th, td {
+      border-bottom: 1px solid #2e2e3e;
+      padding: 12px 8px;
+      font-size: 14px;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #252536;
+      font-weight: 600;
+      color: #ffda88;
+      letter-spacing: 0.5px;
+    }
+
+    .beer-icons {
+      font-size: 1.4rem;
+      letter-spacing: 2px;
+      white-space: normal;
+      word-break: break-word;
+      max-width: 220px;
+    }
+
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 60px;
+      font-weight: bold;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: transform 0.1s ease, background 0.2s;
+      margin: 4px 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+
+    button:active {
+      transform: scale(0.96);
+    }
+
+    .add {
+      background: #0a84ff;
+      color: white;
+    }
+    .add:hover { background: #3a9eff; }
+
+    .pay {
+      background: #00c853;
+      color: white;
+    }
+    .pay:hover { background: #2ee06e; }
+
+    .cancel { background: #6c757d; color: white; }
+    .cancel:hover { background: #8f9aa3; }
+
+    #adminActions button {
+      margin: 8px 8px;
+      font-weight: normal;
+    }
+
+    .qr-grid table {
+      background: #15151e;
+    }
+
+    .qr-grid canvas {
+      background: white;
+      border-radius: 12px;
+      padding: 6px;
+      width: 100px !important;
+      height: 100px !important;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    #chartContainer {
+      background: #1a1a28;
+      border-radius: 28px;
+      padding: 16px;
+      margin: 28px 0;
+    }
+
+    canvas#beerChart {
+      max-height: 320px;
+      width: 100% !important;
+    }
+
+    input[type="password"] {
+      background: #2a2a36;
+      border: 1px solid #444;
+      padding: 10px 14px;
+      border-radius: 48px;
+      color: white;
+      font-size: 1rem;
+      width: 180px;
+      margin: 0 8px;
+    }
+
+    #popup {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(5px);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    #popupBox {
+      background: #1f1f2c;
+      padding: 28px 24px;
+      border-radius: 48px;
+      text-align: center;
+      min-width: 260px;
+      border: 1px solid #ffd966;
+      box-shadow: 0 20px 35px rgba(0,0,0,0.5);
+    }
+
+    #popupBox h3 {
+      font-size: 2rem;
+      margin: 0 0 10px;
+    }
+
+    #popupSum {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: #b9f6ca;
+    }
+
+    .history-list {
+      background: #0f0f17;
+      border-radius: 28px;
+      padding: 12px 18px;
+      max-height: 240px;
+      overflow-y: auto;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+
+    .history-list ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .history-list li {
+      margin: 8px 0;
+      color: #ccc;
+      border-bottom: 1px dashed #2c2c3a;
+      padding: 4px 0;
+    }
+
+    footer {
+      font-size: 12px;
+      margin-top: 30px;
+      opacity: 0.6;
+    }
+
+    @media (max-width: 700px) {
+      th, td { font-size: 12px; padding: 8px 4px; }
+      .beer-icons { font-size: 1.2rem; max-width: 130px; }
+      button { padding: 6px 12px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>🍺 JUII BIERDECKEL 🍺</h1>
+<p style="margin-top:-8px; font-style:italic;">Strichliste – wer hat noch offen?</p>
+
+<!-- 🍺 Haupttabelle: Personen, Biere, Aktionen -->
+<div class="glass-card">
+  <h2>📋 Offene Biere</h2>
+  <div style="overflow-x: auto;">
+    <table>
+      <thead>
+        <tr><th>Name</th><th>🍺 Anzahl / Betrag</th><th>Aktionen</th></tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 📊 Monatsdiagramm -->
+<div id="chartContainer">
+  <h2>📈 Bierkonsum pro Monat</h2>
+  <canvas id="beerChart" width="800" height="350" style="max-width:100%; height:auto; background:#1e1e2a; border-radius:20px;"></canvas>
+</div>
+
+<!-- 📱 QR-Code Tabelle – zum Einscannen & Addieren -->
+<div class="glass-card qr-grid">
+  <h2>📱 QR-Codes für jeden Namen</h2>
+  <p style="font-size:14px;">Scan & Bier wird sofort hinzugefügt!</p>
+  <div style="overflow-x: auto;">
+    <table>
+      <tbody id="qrBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 🔐 Admin Bereich -->
+<div class="glass-card">
+  <h2>🔐 Admin / Verlauf</h2>
+  <div>
+    <input type="password" id="password" placeholder="Passwort">
+    <button onclick="login()" class="add" style="background:#5a5fcf;">Login</button>
+  </div>
+  <div id="adminActions" style="display:none; margin-top: 20px;">
+    <button onclick="resetAll()" style="background:#c44536;">🧹 Alle Biere zurücksetzen</button>
+    <button onclick="clearHistory()" style="background:#e68a2e;">🗑️ Verlauf löschen</button>
+    <h3>📜 Letzte Aktionen</h3>
+    <div class="history-list" id="historyContainer">
+      <ul id="history"></ul>
+    </div>
+  </div>
+</div>
+
+<!-- 💰 Zahlungspopup -->
+<div id="popup">
+  <div id="popupBox">
+    <h3 id="popupName"></h3>
+    <p style="margin:10px 0 0;">offene Rechnung:</p>
+    <p id="popupSum"></p>
+    <div style="margin-top: 24px;">
+      <button class="pay" id="confirmPayBtn">✅ Zahlen & löschen</button>
+      <button class="cancel" id="closePopupBtn">❌ Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<footer>🍻 Prost! Jeder Klick zählt – live synchronisiert.</footer>
+
+<script type="module">
+  // ----------------------------- FIREBASE KONFIGURATION -----------------------------
+  // Demo-Konfiguration – für echtes Projekt bitte durch eigene Firebase Credentials ersetzen.
+  const firebaseConfig = {
+  apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
+  authDomain: "juii-strichliste.firebaseapp.com",
+  projectId: "juii-strichliste",
+  storageBucket: "juii-strichliste.firebasestorage.app",
+  messagingSenderId: "8081599971",
+  appId: "1:8081599971:web:6cc277281b040d995304d6",
+  measurementId: "G-2NNFYKSX3L"
+};
+
+  // WICHTIG: Bitte durch eigene Firebase-Projekt-Daten ersetzen! Für Livebetrieb unbedingt eigene Datenbank nutzen.
+
+  import { initializeApp } from "firebase/app";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const mainDoc = doc(db, "strichliste", "juii_main");
+
+  // Stamm-Liste aller Teilnehmer
+  const names = [
+    "Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris",
+    "Clemens","Dietmar","Donde","Jakob","Lukas","Max",
+    "Micha","Hainzl","Philipp","Basti B.","Simon",
+    "Schwob","Tim","Timo","Tom"
+  ];
+
+  const BEER_PRICE = 2.00;
+  let beerChart = null;
+  let currentPayPerson = null;
+
+  // Hilfsfunktion: bereinigt ID für QR-Canvas
+  function safeId(name) {
+    return name.replace(/[^a-zA-Z0-9]/g, "_");
+  }
+
+  // 📊 Monatsdiagramm aus history erzeugen
+  function renderMonthlyChart(historyArray) {
+    const monthsMap = new Map();
+    if (historyArray && Array.isArray(historyArray)) {
+      historyArray.forEach(entry => {
+        if (entry && entry.time) {
+          const date = new Date(entry.time);
+          if (!isNaN(date.getTime())) {
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+            const key = `${month}/${year}`;
+            monthsMap.set(key, (monthsMap.get(key) || 0) + 1);
+          }
+        }
+      });
+    }
+
+    const labels = Array.from(monthsMap.keys()).sort((a,b) => {
+      const [mA, yA] = a.split('/');
+      const [mB, yB] = b.split('/');
+      return (parseInt(yA) - parseInt(yB)) || (parseInt(mA) - parseInt(mB));
+    });
+    const dataValues = labels.map(lbl => monthsMap.get(lbl) || 0);
+
+    const ctx = document.getElementById('beerChart').getContext('2d');
+    if (beerChart) beerChart.destroy();
+
+    beerChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '🍺 konsumierte Biere',
+          data: dataValues,
+          backgroundColor: '#f9b43a',
+          borderRadius: 12,
+          barPercentage: 0.7,
+          categoryPercentage: 0.8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { labels: { color: '#f0f0f0', font: { size: 13 } } },
+          tooltip: { backgroundColor: '#222', titleColor: '#ffd966', bodyColor: '#ccc' }
+        },
+        scales: {
+          y: { 
+            ticks: { color: '#ddd', stepSize: 1 }, 
+            grid: { color: '#333' },
+            title: { display: true, text: 'Anzahl Bier', color: '#aaa' }
+          },
+          x: { 
+            ticks: { color: '#ffd966', font: { weight: 'bold' } }, 
+            grid: { display: false } 
+          }
+        }
+      }
+    });
+  }
+
+  // Verlauf im Admin-Bereich anzeigen
+  function updateHistoryUI(historyArray) {
+    const historyList = document.getElementById('history');
+    if (!historyList) return;
+    historyList.innerHTML = '';
+    if (!historyArray || historyArray.length === 0) {
+      const li = document.createElement('li');
+      li.innerText = '📭 Noch keine Einträge.';
+      historyList.appendChild(li);
+      return;
+    }
+    [...historyArray].reverse().forEach(entry => {
+      const li = document.createElement('li');
+      const timeStr = entry.time ? new Date(entry.time).toLocaleString('de-DE') : 'unbekannt';
+      li.innerText = `🍺 ${entry.name} – ${timeStr}`;
+      historyList.appendChild(li);
+    });
+  }
+
+  // Haupt-UI: Tabelle mit Bieranzahl & Buttons
+  function renderMainTable(data) {
+    const tbody = document.getElementById('tableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    for (let name of names) {
+      const count = data[name] || 0;
+      const totalEur = (count * BEER_PRICE).toFixed(2);
+      let beerIcons = "—";
+      if (count > 0) {
+        const iconCount = Math.min(count, 25);
+        beerIcons = "🍺".repeat(iconCount);
+        if (count > 25) beerIcons += ` +${count-25}`;
+      }
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td style="font-weight:500;">${name}</td>
+        <td class="beer-icons"><span title="${count} Bier">${beerIcons}</span><br><span style="font-size:13px;">💰 ${totalEur} €</span></td>
+        <td>
+          <button class="add" data-name="${name}">➕ +1 Bier</button>
+          <button class="pay" data-name-pay="${name}">💶 Zahlen</button>
+        </td>
+      `;
+      tbody.appendChild(row);
+    }
+
+    // Event-Listener für "add" und "pay" (dynamisch)
+    document.querySelectorAll('.add').forEach(btn => {
+      const name = btn.getAttribute('data-name');
+      if (name) {
+        btn.removeEventListener('click', addHandler);
+        btn.addEventListener('click', addHandler);
+        function addHandler(e) {
+          e.stopPropagation();
+          addBeer(name);
+        }
+      }
+    });
+
+    document.querySelectorAll('.pay').forEach(btn => {
+      const name = btn.getAttribute('data-name-pay');
+      if (name) {
+        btn.removeEventListener('click', payHandler);
+        btn.addEventListener('click', payHandler);
+        function payHandler(e) {
+          e.stopPropagation();
+          openPayPopup(name);
+        }
+      }
+    });
+  }
+
+  // QR-Code Tabelle rendern (einmalig plus bei Bedarf)
+  function renderQRTable() {
+    const qrBody = document.getElementById('qrBody');
+    if (!qrBody) return;
+    qrBody.innerHTML = '';
+    const baseUrl = `${window.location.origin}${window.location.pathname}`;
+    names.forEach(name => {
+      const id = safeId(name);
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td style="font-weight:bold;">${name}</td>
+        <td><canvas id="qr-${id}" width="120" height="120"></canvas></td>
+      `;
+      qrBody.appendChild(row);
+    });
+
+    setTimeout(() => {
+      names.forEach(name => {
+        const id = safeId(name);
+        const canvas = document.getElementById(`qr-${id}`);
+        if (canvas) {
+          const addUrl = `${baseUrl}?add=${encodeURIComponent(name)}`;
+          QRCode.toCanvas(canvas, addUrl, {
+            width: 110,
+            margin: 1,
+            color: { dark: '#000000', light: '#FFFFFF' }
+          }).catch(err => console.warn("QR Fehler", err));
+        }
+      });
+    }, 100);
+  }
+
+  // Firestore Live-Listener
+  function startFirebaseListener() {
+    onSnapshot(mainDoc, (snapshot) => {
+      let data = {};
+      let historyArray = [];
+      if (snapshot.exists()) {
+        const snapData = snapshot.data();
+        for (let name of names) {
+          data[name] = typeof snapData[name] === 'number' ? snapData[name] : 0;
+        }
+        historyArray = Array.isArray(snapData.history) ? snapData.history : [];
+      } else {
+        const initObj = { history: [] };
+        names.forEach(n => initObj[n] = 0);
+        setDoc(mainDoc, initObj).catch(e => console.warn(e));
+      }
+      renderMainTable(data);
+      updateHistoryUI(historyArray);
+      renderMonthlyChart(historyArray);
+    }, (error) => {
+      console.error("Firestore Fehler:", error);
+      const tbody = document.getElementById('tableBody');
+      if(tbody) tbody.innerHTML = '<tr><td colspan="3">⚠️ Verbindungsproblem – bitte später neu laden</td></tr>';
+    });
+  }
+
+  // +1 Bier Funktion
+  async function addBeer(name) {
+    try {
+      const docSnap = await getDoc(mainDoc);
+      let currentData = docSnap.exists() ? docSnap.data() : {};
+      let newCount = (currentData[name] || 0) + 1;
+      const newHistory = Array.isArray(currentData.history) ? [...currentData.history] : [];
+      newHistory.push({
+        name: name,
+        time: new Date().toISOString()
+      });
+      const updateObj = { ...currentData, [name]: newCount, history: newHistory };
+      await setDoc(mainDoc, updateObj);
+    } catch (err) {
+      console.error("Fehler beim Addieren:", err);
+      alert("Bier konnte nicht gebucht werden. Netzwerk prüfen.");
+    }
+  }
+
+  // Popup öffnen (Zahlungsdialog)
+  function openPayPopup(name) {
+    currentPayPerson = name;
+    getDoc(mainDoc).then(snap => {
+      const data = snap.exists() ? snap.data() : {};
+      const count = data[name] || 0;
+      const total = (count * BEER_PRICE).toFixed(2);
+      document.getElementById('popupName').innerText = name;
+      document.getElementById('popupSum').innerHTML = `${count} 🍺 = <strong>${total} €</strong>`;
+      document.getElementById('popup').style.display = 'flex';
+    }).catch(err => {
+      console.warn(err);
+      document.getElementById('popupName').innerText = name;
+      document.getElementById('popupSum').innerHTML = `Fehler: bitte später`;
+      document.getElementById('popup').style.display = 'flex';
+    });
+  }
+
+  // ** WICHTIG: Zahlung bestätigen - setzt Bier auf 0 und schließt das Popup zuverlässig **
+  async function confirmPayment() {
+    if (!currentPayPerson) {
+      closePopupDirect();
+      return;
+    }
+    try {
+      const docSnap = await getDoc(mainDoc);
+      if (docSnap.exists()) {
+        const currentData = docSnap.data();
+        const updatedData = { ...currentData, [currentPayPerson]: 0 };
+        await setDoc(mainDoc, updatedData);
+      } else {
+        const freshData = { history: [] };
+        names.forEach(n => freshData[n] = 0);
+        freshData[currentPayPerson] = 0;
+        await setDoc(mainDoc, freshData);
+      }
+    } catch (error) {
+      console.error("Bezahl-Fehler:", error);
+      alert("Zahlung konnte nicht gespeichert werden.");
+    } finally {
+      // Popup in jedem Fall schließen (auch bei Fehler, um UI-Zustand zu bereinigen)
+      closePopupDirect();
+    }
+  }
+
+  // saubere Popup-Schließfunktion
+  function closePopupDirect() {
+    const popupElem = document.getElementById('popup');
+    if (popupElem) {
+      popupElem.style.display = 'none';
+    }
+    currentPayPerson = null;
+  }
+
+  // Globale Referenzen (für inline onclicks aus Sicherheit zusätzlich)
+  window.confirmPay = confirmPayment;   // falls irgendwo onlick genutzt
+  window.closePopup = closePopupDirect;
+
+  // Admin-Funktionen
+  window.resetAll = async function() {
+    if (confirm("⚠️ Wirklich ALLE offenen Biere auf Null setzen? Verlauf bleibt erhalten.")) {
+      const snap = await getDoc(mainDoc);
+      const currentData = snap.exists() ? snap.data() : { history: [] };
+      const resetData = { ...currentData };
+      for (let name of names) {
+        resetData[name] = 0;
+      }
+      await setDoc(mainDoc, resetData);
+    }
+  };
+
+  window.clearHistory = async function() {
+    if (confirm("Verlauf komplett löschen? Aktuelle Bierstände bleiben bestehen.")) {
+      const snap = await getDoc(mainDoc);
+      const currentData = snap.exists() ? snap.data() : { history: [] };
+      const newData = { ...currentData, history: [] };
+      await setDoc(mainDoc, newData);
+    }
+  };
+
+  window.login = function() {
+    const pwdInput = document.getElementById('password');
+    if (pwdInput.value === "admin") {
+      document.getElementById('adminActions').style.display = "block";
+      pwdInput.value = "";
+    } else {
+      alert("Falsches Passwort");
+    }
+  };
+
+  // URL-Parameter auswerten: ?add=Name -> sofort Bier addieren
+  function handleUrlParam() {
+    const params = new URLSearchParams(window.location.search);
+    const addParam = params.get('add');
+    if (addParam && names.includes(addParam)) {
+      addBeer(addParam).then(() => {
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      }).catch(console.warn);
+    }
+  }
+
+  // Event-Listener für die Popup-Buttons manuell setzen (zusätzlich zu globalen Funktionen)
+  function bindPopupEvents() {
+    const confirmBtn = document.getElementById('confirmPayBtn');
+    const cancelBtn = document.getElementById('closePopupBtn');
+    if (confirmBtn) {
+      // Alte Listener entfernen, doppelte vermeiden
+      const newConfirm = confirmBtn.cloneNode(true);
+      confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+      newConfirm.addEventListener('click', (e) => {
+        e.preventDefault();
+        confirmPayment();
+      });
+    }
+    if (cancelBtn) {
+      const newCancel = cancelBtn.cloneNode(true);
+      cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+      newCancel.addEventListener('click', (e) => {
+        e.preventDefault();
+        closePopupDirect();
+      });
+    }
+  }
+
+  // QR-Tabelle rendern (einmal initial)
+  function init() {
+    startFirebaseListener();
+    renderQRTable();
+    handleUrlParam();
+    bindPopupEvents();
+    // Falls QR nachladen (bei asynchronen Problemen)
+    setTimeout(() => {
+      renderQRTable();
+      bindPopupEvents(); // erneutes Binden sichert die Funktionalität
+    }, 500);
+  }
+
+  // Zusätzlich: wenn neue QR-Codes durch dynamisches Rendern überschrieben werden, brauchen wir keine doppelten Events
+  // Die Popup-Bindung ist sicher.
+  init();
+</script>
+</body>
+</html>
