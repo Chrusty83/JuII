@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>JUII Bierliste</title>
+  <title>JUII Bierdeckel</title>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -32,7 +32,7 @@
     }
 
     canvas {
-      background: white;
+      background: #1b1b1b;
       padding: 5px;
       border-radius: 8px;
     }
@@ -48,12 +48,14 @@
 
     button {
       padding: 8px 16px;
-      background-color: #0a84ff;
       border: none;
       color: white;
       cursor: pointer;
       border-radius: 6px;
     }
+
+    .add { background: #0a84ff; }
+    .pay { background: #00c853; }
 
     #message {
       margin: 20px;
@@ -66,17 +68,6 @@
       margin: 40px auto;
     }
 
-    @keyframes beerPop {
-      0% { transform: scale(0.5) rotate(-10deg); opacity: 0; }
-      50% { transform: scale(1.3) rotate(5deg); }
-      100% { transform: scale(1) rotate(0deg); opacity: 1; }
-    }
-
-    .beer-animated {
-      display: inline-block;
-      animation: beerPop 0.4s ease;
-    }
-
     #adminPanel {
       margin-top: 40px;
     }
@@ -86,12 +77,30 @@
       border-radius: 5px;
       border: none;
     }
+
+    /* Modal */
+    #popup {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      align-items: center;
+      justify-content: center;
+    }
+
+    #popupBox {
+      background: #222;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+    }
   </style>
 </head>
 
 <body>
 
-<h1>🍺 JUII Bierliste 🍺</h1>
+<h1>🍺 JUII Bierdeckel 🍺</h1>
 
 <div id="message"></div>
 
@@ -106,51 +115,70 @@
   <tr>
     <td>Bernd</td>
     <td id="Bernd"></td>
-    <td><button onclick="add('Bernd')">+1</button></td>
+    <td>
+      <button class="add" onclick="add('Bernd')">+1</button>
+      <button class="pay" onclick="pay('Bernd')">Zahlen</button>
+    </td>
     <td><canvas id="qr-Bernd"></canvas></td>
   </tr>
 
   <tr>
     <td>Basti</td>
     <td id="Basti"></td>
-    <td><button onclick="add('Basti')">+1</button></td>
+    <td>
+      <button class="add" onclick="add('Basti')">+1</button>
+      <button class="pay" onclick="pay('Basti')">Zahlen</button>
+    </td>
     <td><canvas id="qr-Basti"></canvas></td>
   </tr>
 
   <tr>
     <td>Dietmar</td>
     <td id="Dietmar"></td>
-    <td><button onclick="add('Dietmar')">+1</button></td>
+    <td>
+      <button class="add" onclick="add('Dietmar')">+1</button>
+      <button class="pay" onclick="pay('Dietmar')">Zahlen</button>
+    </td>
     <td><canvas id="qr-Dietmar"></canvas></td>
   </tr>
 </table>
 
-<!-- 📊 Diagramm -->
+<!-- 📊 Chart -->
 <div id="chartContainer">
-  <h2>Monatliche Bierübersicht</h2>
+  <h2>Monatsübersicht</h2>
   <canvas id="beerChart"></canvas>
 </div>
-
-<h2>Verlauf</h2>
-<ul id="history"></ul>
 
 <!-- 🔐 Admin -->
 <div id="adminPanel">
   <h2>Admin</h2>
-  <input type="password" id="password" placeholder="Passwort">
-  <button onclick="login()">Login</button>
+  <input type="password" id="password">
+  <button onclick="login()" class="add">Login</button>
 
   <div id="adminActions" style="display:none; margin-top:10px;">
     <button onclick="resetAll()" style="background:red;">Alles löschen</button>
     <button onclick="clearHistory()" style="background:orange;">Verlauf löschen</button>
+
+    <!-- Verlauf nur hier -->
+    <h3>Verlauf</h3>
+    <ul id="history"></ul>
+  </div>
+</div>
+
+<!-- 💰 Popup -->
+<div id="popup">
+  <div id="popupBox">
+    <h2 id="popupName"></h2>
+    <p id="popupSum"></p>
+    <button onclick="closePopup()" class="add">OK</button>
   </div>
 </div>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-  const firebaseConfig = {
+const firebaseConfig = {
   apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
   authDomain: "juii-strichliste.firebaseapp.com",
   projectId: "juii-strichliste",
@@ -161,152 +189,147 @@
 };
 
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const ref = doc(db, "strichliste", "main");
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const ref = doc(db, "strichliste", "main");
 
-  const names = ["Bernd", "Basti", "Dietmar"];
-  const price = 2;
+const names = ["Bernd","Basti","Dietmar"];
+const price = 2;
 
-  let lastCounts = { Bernd: 0, Basti: 0, Dietmar: 0 };
-  let chart;
+let dataCache = {};
+let chart;
 
-  function renderBeers(count, name) {
-    let html = "";
+function renderBeers(c){
+  return "🍺".repeat(c);
+}
 
-    for (let i = 0; i < count; i++) {
-      if (i >= lastCounts[name]) {
-        html += `<span class="beer-animated">🍺</span>`;
-      } else {
-        html += "🍺";
-      }
-    }
+function listen(){
+  onSnapshot(ref, snap => {
+    let data = snap.exists()?snap.data():{Bernd:0,Basti:0,Dietmar:0,history:[]};
+    dataCache = data;
 
-    return html;
-  }
-
-  function createChart(history) {
-    const monthly = {};
-
-    history.forEach(e => {
-      const d = new Date(e.time);
-      const key = `${d.getMonth()+1}/${d.getFullYear()}`;
-      monthly[key] = (monthly[key] || 0) + 1;
+    names.forEach(n=>{
+      const c = data[n]||0;
+      document.getElementById(n).innerHTML =
+        `<div class="beers">${renderBeers(c)}</div>
+         <div class="price">${c*price} €</div>`;
     });
 
-    const labels = Object.keys(monthly);
-    const data = Object.values(monthly);
+    renderHistory(data.history||[]);
+    renderChart(data.history||[]);
+  });
+}
 
-    if (chart) chart.destroy();
+function renderHistory(h){
+  const ul = document.getElementById("history");
+  if(!ul) return;
+  ul.innerHTML="";
+  h.slice().reverse().forEach(e=>{
+    let li=document.createElement("li");
+    li.innerText=`${e.name} → ${e.time}`;
+    ul.appendChild(li);
+  });
+}
 
-    chart = new Chart(document.getElementById("beerChart"), {
-      type: "bar",
-      data: {
-        labels,
-        datasets: [{ label: "Biere", data }]
-      }
-    });
-  }
-
-  function listen() {
-    onSnapshot(ref, snap => {
-      let data = snap.exists() ? snap.data() : {
-        Bernd:0,Basti:0,Dietmar:0,history:[]
-      };
-
-      names.forEach(name => {
-        const c = data[name] || 0;
-
-        document.getElementById(name).innerHTML = `
-          <div class="beers">${renderBeers(c, name)}</div>
-          <div class="price">(${c*price} €)</div>
-        `;
-
-        lastCounts[name] = c;
-      });
-
-      renderHistory(data.history || []);
-      createChart(data.history || []);
-    });
-  }
-
-  function renderHistory(h) {
-    const ul = document.getElementById("history");
-    ul.innerHTML = "";
-
-    h.slice().reverse().forEach(e => {
-      const li = document.createElement("li");
-      li.innerText = `${e.name} → ${e.time}`;
-      ul.appendChild(li);
-    });
-  }
-
-  window.add = async function(name) {
-    const snap = await getDoc(ref);
-    let data = snap.exists() ? snap.data() : {
-      Bernd:0,Basti:0,Dietmar:0,history:[]
-    };
-
-    data[name]++;
-    data.history.push({
-      name,
-      time: new Date().toISOString()
-    });
-
-    await setDoc(ref, data);
-  };
-
-  listen();
-
-  // QR Codes
-  const base = window.location.origin + window.location.pathname;
-
-  names.forEach(n => {
-    QRCode.toCanvas(
-      document.getElementById("qr-"+n),
-      base+"?add="+n,
-      { width:100 }
-    );
+function renderChart(h){
+  const m={};
+  h.forEach(e=>{
+    let d=new Date(e.time);
+    let k=`${d.getMonth()+1}/${d.getFullYear()}`;
+    m[k]=(m[k]||0)+1;
   });
 
-  // Scan Action
-  const p = new URLSearchParams(window.location.search);
-  const u = p.get("add");
+  if(chart) chart.destroy();
 
-  if (u && names.includes(u)) {
-    add(u);
+  chart=new Chart(document.getElementById("beerChart"),{
+    type:"bar",
+    data:{
+      labels:Object.keys(m),
+      datasets:[{label:"Biere",data:Object.values(m)}]
+    },
+    options:{
+      plugins:{legend:{labels:{color:"#fff"}}},
+      scales:{
+        x:{ticks:{color:"#fff"}},
+        y:{ticks:{color:"#fff"}}
+      }
+    }
+  });
+}
 
-    document.getElementById("message").innerText =
-      `🍺 1 Bier wurde für ${u} hinzugefügt`;
+window.add = async function(name){
+  const snap=await getDoc(ref);
+  let d=snap.exists()?snap.data():{Bernd:0,Basti:0,Dietmar:0,history:[]};
 
-    if (navigator.vibrate) navigator.vibrate([100,50,100]);
+  d[name]++;
+  d.history.push({name,time:new Date().toISOString()});
 
-    window.history.replaceState({}, "", window.location.pathname);
+  await setDoc(ref,d);
+};
 
-    setTimeout(() => {
-      window.location.href = window.location.pathname;
-    }, 3000);
+window.pay = function(name){
+  const c=dataCache[name]||0;
+  const sum=c*price;
+
+  document.getElementById("popupName").innerText=name;
+  document.getElementById("popupSum").innerText=`Zu zahlen: ${sum} €`;
+
+  document.getElementById("popup").style.display="flex";
+};
+
+window.closePopup = async function(){
+  const snap=await getDoc(ref);
+  let d=snap.data();
+
+  names.forEach(n=>d[n]=0);
+  d.history=[];
+
+  await setDoc(ref,d);
+
+  document.getElementById("popup").style.display="none";
+};
+
+window.login=function(){
+  if(document.getElementById("password").value==="admin"){
+    document.getElementById("adminActions").style.display="block";
   }
+};
 
-  // Admin
-  window.login = function() {
-    if (document.getElementById("password").value === "admin") {
-      document.getElementById("adminActions").style.display = "block";
-    } else alert("Falsch");
-  };
+window.resetAll=async function(){
+  await setDoc(ref,{Bernd:0,Basti:0,Dietmar:0,history:[]});
+};
 
-  window.resetAll = async function() {
-    await setDoc(ref, {
-      Bernd:0,Basti:0,Dietmar:0,history:[]
-    });
-  };
+window.clearHistory=async function(){
+  let d=dataCache;
+  d.history=[];
+  await setDoc(ref,d);
+};
 
-  window.clearHistory = async function() {
-    const snap = await getDoc(ref);
-    let d = snap.data();
-    d.history = [];
-    await setDoc(ref, d);
-  };
+listen();
+
+// QR
+const base=window.location.origin+window.location.pathname;
+
+names.forEach(n=>{
+  QRCode.toCanvas(document.getElementById("qr-"+n), base+"?add="+n,{width:100});
+});
+
+// Scan
+const p=new URLSearchParams(window.location.search);
+const u=p.get("add");
+
+if(u && names.includes(u)){
+  add(u);
+
+  document.getElementById("message").innerText=
+    `🍺 1 Bier für ${u}`;
+
+  if(navigator.vibrate) navigator.vibrate([100,50,100]);
+
+  window.history.replaceState({}, "", window.location.pathname);
+
+  setTimeout(()=>location.href=window.location.pathname,3000);
+}
 </script>
 
 </body>
