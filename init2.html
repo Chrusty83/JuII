@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>Strichliste</title>
 
-  <!-- QR-Code Library -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
   <style>
@@ -34,6 +33,11 @@
       background: white;
       padding: 5px;
       border-radius: 8px;
+    }
+
+    .price {
+      font-size: 14px;
+      color: #aaa;
     }
 
     button {
@@ -69,21 +73,21 @@
 
   <tr>
     <td>Bernd</td>
-    <td id="Bernd">0</td>
+    <td id="Bernd"></td>
     <td><button onclick="add('Bernd')">+1</button></td>
     <td><canvas id="qr-Bernd"></canvas></td>
   </tr>
 
   <tr>
     <td>Basti</td>
-    <td id="Basti">0</td>
+    <td id="Basti"></td>
     <td><button onclick="add('Basti')">+1</button></td>
     <td><canvas id="qr-Basti"></canvas></td>
   </tr>
 
   <tr>
     <td>Dietmar</td>
-    <td id="Dietmar">0</td>
+    <td id="Dietmar"></td>
     <td><button onclick="add('Dietmar')">+1</button></td>
     <td><canvas id="qr-Dietmar"></canvas></td>
   </tr>
@@ -97,15 +101,8 @@
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
-  apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
-  authDomain: "juii-strichliste.firebaseapp.com",
-  projectId: "juii-strichliste",
-  storageBucket: "juii-strichliste.firebasestorage.app",
-  messagingSenderId: "8081599971",
-  appId: "1:8081599971:web:6cc277281b040d995304d6",
-  measurementId: "G-2NNFYKSX3L"
-};
-
+    // 🔴 deine Firebase Daten
+  };
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
@@ -113,19 +110,33 @@
   const ref = doc(db, "strichliste", "main");
 
   const names = ["Bernd", "Basti", "Dietmar"];
+  const pricePerBeer = 2;
 
   async function load() {
     const snap = await getDoc(ref);
 
+    let data = {
+      Bernd: 0,
+      Basti: 0,
+      Dietmar: 0,
+      history: []
+    };
+
     if (snap.exists()) {
-      const data = snap.data();
-
-      names.forEach(name => {
-        document.getElementById(name).innerText = data[name] || 0;
-      });
-
-      renderHistory(data.history || []);
+      data = snap.data();
     }
+
+    names.forEach(name => {
+      const count = data[name] || 0;
+      const price = count * pricePerBeer;
+
+      document.getElementById(name).innerHTML = `
+        ${count}<br>
+        <span class="price">(${price} €)</span>
+      `;
+    });
+
+    renderHistory(data.history || []);
   }
 
   function renderHistory(history) {
@@ -167,7 +178,7 @@
 
   load();
 
-  // 🔗 QR-Codes generieren
+  // QR-Codes
   const baseUrl = window.location.origin + window.location.pathname;
 
   names.forEach(name => {
@@ -180,7 +191,7 @@
     );
   });
 
-  // 🔗 Auto-Add + Anzeige + Reset
+  // Auto-Add + Anzeige + Reset
   const params = new URLSearchParams(window.location.search);
   const user = params.get("add");
 
@@ -190,10 +201,8 @@
     const msg = document.getElementById("message");
     msg.innerText = `🍺 1 Bier wurde für ${user} hinzugefügt`;
 
-    // URL bereinigen
     window.history.replaceState({}, document.title, window.location.pathname);
 
-    // 🔄 nach 3 Sekunden zurücksetzen
     setTimeout(() => {
       window.location.href = window.location.pathname;
     }, 3000);
