@@ -101,8 +101,15 @@
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
-    // 🔴 deine Firebase Daten
-  };
+  apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
+  authDomain: "juii-strichliste.firebaseapp.com",
+  projectId: "juii-strichliste",
+  storageBucket: "juii-strichliste.firebasestorage.app",
+  messagingSenderId: "8081599971",
+  appId: "1:8081599971:web:6cc277281b040d995304d6",
+  measurementId: "G-2NNFYKSX3L"
+};
+
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
