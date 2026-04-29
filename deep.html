@@ -229,7 +229,7 @@
 <div class="glass-card qr-grid">
   <h2>📱 QR-Codes</h2>
   <p style="font-size:14px;">Scan zum Bier hinzufügen</p>
-  <div style="overflow-x: auto;"></table><tbody id="qrBody"></tbody></table></div>
+  <div style="overflow-x: auto;"></table><tbody id="qrBody"></tbody></tr></div>
 </div>
 
 <div class="glass-card">
@@ -610,6 +610,7 @@ function logoutAdmin() {
   sessionStorage.removeItem('adminAuth');
   document.getElementById('adminActions').style.display = 'none';
   refreshUI();
+  alert("👋 Admin-Logout");
 }
 
 function checkAdminSession() {
