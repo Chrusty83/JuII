@@ -19,6 +19,7 @@
     }
     h1 {
       font-size: 2rem;
+      margin: 0 0 0.25rem;
       background: linear-gradient(135deg, #f9b43a, #ffd966);
       background-clip: text;
       -webkit-background-clip: text;
@@ -50,6 +51,7 @@
     }
     th { background: #252536; color: #ffda88; }
     .beer-icons { font-size: 1.4rem; letter-spacing: 2px; }
+    .beer-price { font-size: 13px; color: #aaa; margin-top: 4px; }
     button {
       padding: 8px 16px;
       border: none;
@@ -58,13 +60,17 @@
       font-size: 0.85rem;
       cursor: pointer;
       margin: 4px 6px;
-      transition: transform 0.1s;
+      transition: transform 0.1s, opacity 0.2s;
     }
     button:active { transform: scale(0.96); }
+    button:hover { opacity: 0.85; }
     .add { background: #0a84ff; color: white; }
     .pay { background: #00c853; color: white; }
     .cancel { background: #6c757d; color: white; }
     .admin-login-btn { background: #5a5fcf; color: white; }
+    .reset-btn { background: #c44536; color: white; }
+    .clear-btn { background: #e68a2e; color: white; }
+    .logout-btn { background: #666; color: white; }
     .qr-grid canvas {
       background: white;
       border-radius: 12px;
@@ -185,7 +191,6 @@
   <h2>📈 Bierkonsum pro Monat</h2>
   <canvas id="beerChart" width="800" height="350"></canvas>
   
-  <!-- Monatsübersicht -->
   <div id="monthStats" class="stats-container">
     <div class="stat-card">
       <div class="stat-month" id="currentMonthLabel">-</div>
@@ -221,9 +226,9 @@
     <button id="loginBtn" class="admin-login-btn">🔓 Login</button>
   </div>
   <div id="adminActions" style="display:none; margin-top: 20px;">
-    <button id="resetAllBtn" style="background:#c44536;">🧹 Alle Biere zurücksetzen</button>
-    <button id="clearHistoryBtn" style="background:#e68a2e;">🗑️ Verlauf löschen</button>
-    <button id="logoutBtn" style="background:#666;">🚪 Logout</button>
+    <button id="resetAllBtn" class="reset-btn">🧹 Alle Biere zurücksetzen</button>
+    <button id="clearHistoryBtn" class="clear-btn">🗑️ Verlauf löschen</button>
+    <button id="logoutBtn" class="logout-btn">🚪 Logout</button>
     <h3>📜 Letzte Aktionen</h3>
     <div class="history-list"><ul id="history"></ul></div>
   </div>
@@ -298,24 +303,19 @@
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
     
-    // Zielmonate: aktueller Monat, letzter Monat, vorletzter Monat
     const targets = [
-      { year: currentYear, month: currentMonth, label: "Aktueller Monat", elementId: "currentMonthCount", labelId: "currentMonthLabel" },
+      { year: currentYear, month: currentMonth, elementId: "currentMonthCount", labelId: "currentMonthLabel" },
       { year: currentMonth === 1 ? currentYear - 1 : currentYear, month: currentMonth === 1 ? 12 : currentMonth - 1, elementId: "lastMonthCount", labelId: "lastMonthLabel" },
       { year: currentMonth <= 2 ? currentYear - 1 : currentYear, month: currentMonth === 1 ? 11 : (currentMonth === 2 ? 12 : currentMonth - 2), elementId: "twoMonthsAgoCount", labelId: "twoMonthsAgoLabel" }
     ];
     
-    // Monatsnamen setzen
     targets.forEach((target, idx) => {
       const labelElem = document.getElementById(target.labelId);
       if (labelElem) {
-        if (idx === 0) labelElem.innerText = getMonthName(target.year, target.month);
-        else if (idx === 1) labelElem.innerText = getMonthName(target.year, target.month);
-        else labelElem.innerText = getMonthName(target.year, target.month);
+        labelElem.innerText = getMonthName(target.year, target.month);
       }
     });
     
-    // Zähler für jeden Monat initialisieren
     const counts = [0, 0, 0];
     
     if (historyArray && Array.isArray(historyArray)) {
@@ -337,7 +337,6 @@
       });
     }
     
-    // Anzeige aktualisieren
     document.getElementById('currentMonthCount').innerText = counts[0];
     document.getElementById('lastMonthCount').innerText = counts[1];
     document.getElementById('twoMonthsAgoCount').innerText = counts[2];
@@ -357,7 +356,7 @@
       tbody.innerHTML += `
         <tr>
           <td style="font-weight:500;">${escapeHtml(name)}</td>
-          <td class="beer-icons">${icons}<br>💰 ${formattedTotal}</td>
+          <td class="beer-icons">${icons}<br><span class="beer-price">${formattedTotal}</span></td>
           <td>
             <button class="add" data-name="${escapeHtml(name)}">➕ +1</button>
             <button class="pay" data-name-pay="${escapeHtml(name)}">💶 Zahlen</button>
@@ -381,7 +380,6 @@
       }
     });
     
-    // Sortierte Labels
     const sortedLabels = Array.from(months.keys()).sort((a,b) => {
       const [mA, yA] = a.split('/');
       const [mB, yB] = b.split('/');
@@ -403,7 +401,6 @@
       } 
     });
     
-    // Monatsübersicht aktualisieren
     updateMonthStats(historyArray);
   }
   
