@@ -75,6 +75,13 @@
     .popup-confirm { background: #2e7d64; color: white; }
     .popup-cancel { background: #6c757d; color: white; }
     
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: center;
+    }
+    
     .qr-grid canvas {
       background: white;
       border-radius: 12px;
@@ -236,7 +243,7 @@
   <h2>📱 QR-Codes</h2>
   <p style="font-size:14px;">Scan zum Bier hinzufügen</p>
   <div style="overflow-x: auto;">
-    </table>
+    <table>
       <tbody id="qrBody"></tbody>
     </table>
   </div>
@@ -426,9 +433,11 @@ function renderMainTable(data) {
       <tr>
         <td style="font-weight:500;">${escapeHtml(name)}</td>
         <td class="beer-icons">${icons}<br><span class="beer-cost">${formatEuro(total)}</span></td>
-        <td style="white-space: nowrap;">
-          <button class="add" data-name="${escapeHtml(name)}">➕ +1 Bier</button>
-          <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">💰 Ich habe bezahlt</button>
+        <td>
+          <div class="action-buttons">
+            <button class="add" data-name="${escapeHtml(name)}">➕ +1 Bier</button>
+            <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">Ich habe bezahlt</button>
+          </div>
         </td>
       </tr>
     `;
@@ -438,7 +447,11 @@ function renderMainTable(data) {
     btn.onclick = () => {
       const name = btn.dataset.namePay;
       const count = parseInt(btn.dataset.count) || 0;
-      showConfirmPopup(name, count);
+      if (count > 0) {
+        showConfirmPopup(name, count);
+      } else {
+        alert("Keine offenen Biere zum Bezahlen.");
+      }
     };
   });
 }
