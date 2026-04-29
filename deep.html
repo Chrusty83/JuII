@@ -66,6 +66,7 @@
     button:hover { opacity: 0.85; }
     .add { background: #0a84ff; color: white; }
     .pay { background: #00c853; color: white; }
+    .paypal { background: #0070ba; color: white; }
     .cancel { background: #6c757d; color: white; }
     .admin-login-btn { background: #5a5fcf; color: white; }
     .reset-btn { background: #c44536; color: white; }
@@ -140,10 +141,17 @@
       background: #1f1f2c;
       padding: 28px 24px;
       border-radius: 48px;
-      min-width: 260px;
+      min-width: 300px;
       border: 1px solid #ffd966;
     }
-    #popupSum { font-size: 1.8rem; font-weight: bold; color: #b9f6ca; }
+    #popupSum { font-size: 1.8rem; font-weight: bold; color: #b9f6ca; margin-bottom: 20px; }
+    .popup-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
     .history-list {
       background: #0f0f17;
       border-radius: 28px;
@@ -239,8 +247,11 @@
     <h3 id="popupName"></h3>
     <p>offene Rechnung:</p>
     <p id="popupSum"></p>
-    <button class="pay" id="confirmPayBtn">✅ Zahlen & löschen</button>
-    <button class="cancel" id="closePopupBtn">❌ Abbrechen</button>
+    <div class="popup-buttons">
+      <button class="pay" id="confirmPayBtn">✅ Zahlen & löschen</button>
+      <button class="paypal" id="paypalBtn">💰 Per PayPal bezahlen</button>
+      <button class="cancel" id="closePopupBtn">❌ Abbrechen</button>
+    </div>
   </div>
 </div>
 
@@ -263,12 +274,16 @@
   // ==================== ADMIN PASSWORT ====================
   const ADMIN_PASSWORD = "admin123";
   
+  // ==================== PAYPAL KONFIGURATION ====================
+  const PAYPAL_EMAIL = "christian@walter.ink";
+  
   let isAdminLoggedIn = false;
   let useFirebase = false;
   let mainDocRef = null;
   let unsubscribe = null;
   let beerChart = null;
   let currentPayPerson = null;
+  let currentPayAmount = 0;
   
   const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
   const BEER_PRICE = 2.00;
@@ -292,6 +307,21 @@
     }
   }
   
+  // ==================== POPUP SCHLIESSEN ====================
+  function closePopup() {
+    document.getElementById('popup').style.display = 'none';
+    currentPayPerson = null;
+    currentPayAmount = 0;
+  }
+  
+  // ==================== PAYPAL LINK ====================
+  function openPaypal(amount, personName) {
+    const amountFormatted = amount.toFixed(2);
+    const description = `Bierdeckel-Zahlung von ${personName}`;
+    const paypalUrl = `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(PAYPAL_EMAIL)}&amount=${amountFormatted}&currency_code=EUR&item_name=${encodeURIComponent(description)}&no_shipping=1&no_note=1`;
+    window.open(paypalUrl, '_blank');
+  }
+  
   // ==================== MONATSÜBERSICHT ====================
   function getMonthName(year, month) {
     const date = new Date(year, month - 1, 1);
@@ -309,7 +339,7 @@
       { year: currentMonth <= 2 ? currentYear - 1 : currentYear, month: currentMonth === 1 ? 11 : (currentMonth === 2 ? 12 : currentMonth - 2), elementId: "twoMonthsAgoCount", labelId: "twoMonthsAgoLabel" }
     ];
     
-    targets.forEach((target, idx) => {
+    targets.forEach((target) => {
       const labelElem = document.getElementById(target.labelId);
       if (labelElem) {
         labelElem.innerText = getMonthName(target.year, target.month);
@@ -325,7 +355,6 @@
           if (!isNaN(date.getTime())) {
             const entryYear = date.getFullYear();
             const entryMonth = date.getMonth() + 1;
-            
             for (let i = 0; i < targets.length; i++) {
               if (entryYear === targets[i].year && entryMonth === targets[i].month) {
                 counts[i]++;
@@ -606,22 +635,27 @@
       const data = loadLocalData();
       count = data ? (data[name] || 0) : 0;
     }
-    const total = count * BEER_PRICE;
-    const formattedTotal = formatEuro(total);
+    currentPayAmount = count * BEER_PRICE;
+    const formattedTotal = formatEuro(currentPayAmount);
     document.getElementById('popupName').innerText = name;
     document.getElementById('popupSum').innerHTML = `${count} 🍺 = <strong>${formattedTotal}</strong>`;
     document.getElementById('popup').style.display = 'flex';
   }
   
-  async function onConfirmPayment() {
-    if (currentPayPerson) await pay(currentPayPerson);
-    document.getElementById('popup').style.display = 'none';
-    currentPayPerson = null;
+  // Zahlen & löschen - schließt das Popup sofort
+  function onConfirmPayment() {
+    if (currentPayPerson) {
+      pay(currentPayPerson);
+    }
+    closePopup();
   }
   
-  function closePopup() {
-    document.getElementById('popup').style.display = 'none';
-    currentPayPerson = null;
+  // PayPal bezahlen - schließt das Popup sofort
+  function onPaypalPayment() {
+    if (currentPayPerson && currentPayAmount > 0) {
+      openPaypal(currentPayAmount, currentPayPerson);
+    }
+    closePopup();
   }
   
   // ==================== ADMIN LOGIN ====================
@@ -678,6 +712,9 @@
     
     const confirmBtn = document.getElementById('confirmPayBtn');
     if (confirmBtn) confirmBtn.addEventListener('click', onConfirmPayment);
+    
+    const paypalBtn = document.getElementById('paypalBtn');
+    if (paypalBtn) paypalBtn.addEventListener('click', onPaypalPayment);
     
     const closeBtn = document.getElementById('closePopupBtn');
     if (closeBtn) closeBtn.addEventListener('click', closePopup);
