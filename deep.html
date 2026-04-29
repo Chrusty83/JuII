@@ -272,7 +272,6 @@ const FIREBASE_CONFIG = {
 };
 const ADMIN_PASSWORD = "admin123";
 
-let isAdminLoggedIn = false;
 let useFirebase = false;
 let mainDocRef = null;
 let unsubscribe = null;
@@ -282,6 +281,11 @@ let pendingPayAmount = 0;
 
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 const STORAGE_KEY = "juii_bierdeckel_data";
+
+// Admin-Status aus sessionStorage auslesen
+function isAdmin() {
+  return sessionStorage.getItem('adminAuth') === 'true';
+}
 
 function escapeHtml(str) { return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
 function formatEuro(amount) { return amount === Math.floor(amount) ? `${Math.floor(amount)} €` : `${amount.toFixed(2)} €`; }
@@ -317,14 +321,12 @@ async function resetBeerCountForPerson(person) {
     if (!data.history) data.history = [];
     data.history.push({ name: `${person} (bezahlt: ${oldCount} Bier = ${formatEuro(oldCount * BEER_PRICE)})`, time: new Date().toISOString() });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    renderMainTable(data);
-    updateHistoryUI(data.history);
-    renderMonthlyChart(data.history);
+    refreshUI();
   }
 }
 
 async function removeBeerFromPerson(person) {
-  if (!isAdminLoggedIn) { alert("Keine Berechtigung! Nur für Admin."); return; }
+  if (!isAdmin()) { alert("Keine Berechtigung! Nur für Admin."); return; }
   
   if (useFirebase && mainDocRef) {
     const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
@@ -349,9 +351,7 @@ async function removeBeerFromPerson(person) {
       if (!data.history) data.history = [];
       data.history.push({ name: `${person} (1 Bier entfernt)`, time: new Date().toISOString() });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      renderMainTable(data);
-      updateHistoryUI(data.history);
-      renderMonthlyChart(data.history);
+      refreshUI();
     } else {
       alert(`${person} hat keine Biere zum Entfernen.`);
     }
@@ -397,27 +397,32 @@ function updateMonthStats(historyArray) {
   document.getElementById('twoMonthsAgoCount').innerText = counts[2];
 }
 
-// WICHTIG: renderMainTable verwendet JETZT den aktuellen isAdminLoggedIn Status
+// HAUPTFUNKTION - rendert die Tabelle basierend auf dem aktuellen Admin-Status
 function renderMainTable(data) {
   const tbody = document.getElementById('tableBody');
   if (!tbody) return;
   tbody.innerHTML = '';
+  const adminLoggedIn = isAdmin(); // JEDES MAL NEU PRÜFEN!
+  
   for (let name of names) {
     const count = data[name] || 0;
     const total = count * BEER_PRICE;
     let icons = count > 0 ? "🍺".repeat(Math.min(count, 20)) + (count > 20 ? ` +${count-20}` : "") : "—";
     let buttonsHtml = `<button class="add" data-name="${escapeHtml(name)}">+1 Bier</button>
                        <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">bezahlt</button>`;
-    // Admin-Button nur bei isAdminLoggedIn === true
-    if (isAdminLoggedIn === true) {
+    
+    // Admin-Button NUR wenn adminLoggedIn TRUE ist
+    if (adminLoggedIn) {
       buttonsHtml += `<button class="remove" data-name-remove="${escapeHtml(name)}">-1 Bier</button>`;
     }
+    
     tbody.innerHTML += `<tr>
       <td style="font-weight:500;">${escapeHtml(name)}</td>
       <td class="beer-icons">${icons}<br><span class="beer-cost">${formatEuro(total)}</span></td>
       <td><div class="action-buttons">${buttonsHtml}</div></td>
     </tr>`;
   }
+  
   document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
   document.querySelectorAll('.pay').forEach(btn => { btn.onclick = () => { const name = btn.dataset.namePay; const count = parseInt(btn.dataset.count) || 0; showConfirmPopup(name, count); }; });
   document.querySelectorAll('.remove').forEach(btn => { btn.onclick = () => removeBeerFromPerson(btn.dataset.nameRemove); });
@@ -470,6 +475,29 @@ function renderQRTable() {
 function loadLocalData() { const stored = localStorage.getItem(STORAGE_KEY); return stored ? JSON.parse(stored) : null; }
 function saveLocalData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 
+function refreshUI() {
+  if (useFirebase && mainDocRef) {
+    getDoc(mainDocRef).then(snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const renderData = {};
+        names.forEach(n => renderData[n] = data[n] || 0);
+        renderMainTable(renderData);
+        updateHistoryUI(data.history || []);
+        renderMonthlyChart(data.history || []);
+      }
+    });
+  } else {
+    let data = loadLocalData();
+    if (!data) { const empty = {}; names.forEach(n => empty[n] = 0); data = { ...empty, history: [] }; saveLocalData(data); }
+    names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
+    if (!data.history) data.history = [];
+    renderMainTable(data);
+    updateHistoryUI(data.history);
+    renderMonthlyChart(data.history);
+  }
+}
+
 function renderLocalData() {
   let data = loadLocalData();
   if (!data) { const empty = {}; names.forEach(n => empty[n] = 0); data = { ...empty, history: [] }; saveLocalData(data); }
@@ -487,22 +515,20 @@ async function addBeerLocal(name) {
   data[name] = (data[name] || 0) + 1;
   data.history.push({ name, time: new Date().toISOString() });
   saveLocalData(data);
-  renderMainTable(data);
-  updateHistoryUI(data.history);
-  renderMonthlyChart(data.history);
+  refreshUI();
 }
 
 async function resetLocal() {
-  if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
+  if (!isAdmin()) { alert("Keine Berechtigung!"); return false; }
   let data = loadLocalData();
-  if (data) { names.forEach(n => data[n] = 0); saveLocalData(data); renderMainTable(data); updateHistoryUI(data.history); renderMonthlyChart(data.history); alert("✅ Alle Biere zurückgesetzt"); return true; }
+  if (data) { names.forEach(n => data[n] = 0); saveLocalData(data); refreshUI(); alert("✅ Alle Biere zurückgesetzt"); return true; }
   return false;
 }
 
 async function clearHistoryLocal() {
-  if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
+  if (!isAdmin()) { alert("Keine Berechtigung!"); return false; }
   let data = loadLocalData();
-  if (data) { data.history = []; saveLocalData(data); renderMainTable(data); updateHistoryUI(data.history); renderMonthlyChart(data.history); alert("✅ Verlauf gelöscht"); return true; }
+  if (data) { data.history = []; saveLocalData(data); refreshUI(); alert("✅ Verlauf gelöscht"); return true; }
   return false;
 }
 
@@ -517,7 +543,7 @@ async function addBeerFirebase(name) {
 }
 
 async function resetFirebase() {
-  if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
+  if (!isAdmin()) { alert("Keine Berechtigung!"); return false; }
   if (!mainDocRef) return false;
   const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
   const snap = await getDoc(mainDocRef);
@@ -526,7 +552,7 @@ async function resetFirebase() {
 }
 
 async function clearHistoryFirebase() {
-  if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
+  if (!isAdmin()) { alert("Keine Berechtigung!"); return false; }
   if (!mainDocRef) return false;
   const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
   const snap = await getDoc(mainDocRef);
@@ -557,7 +583,6 @@ async function initFirebase() {
         const snapData = snapshot.data();
         const newData = {};
         names.forEach(n => newData[n] = typeof snapData[n] === 'number' ? snapData[n] : 0);
-        // HIER wird der aktuelle isAdminLoggedIn Status verwendet
         renderMainTable(newData);
         updateHistoryUI(snapData.history || []);
         renderMonthlyChart(snapData.history || []);
@@ -570,52 +595,26 @@ async function initFirebase() {
 function loginAdmin() {
   const pwd = document.getElementById('adminPassword').value;
   if (pwd === ADMIN_PASSWORD) {
-    isAdminLoggedIn = true;
     sessionStorage.setItem('adminAuth', 'true');
     document.getElementById('adminActions').style.display = 'block';
     document.getElementById('adminPassword').value = '';
     alert("✅ Login erfolgreich!");
-    // Tabelle sofort mit Admin-Buttons neu rendern
-    if (useFirebase && mainDocRef) {
-      getDoc(mainDocRef).then(snap => {
-        if (snap.exists()) {
-          const data = snap.data();
-          const renderData = {};
-          names.forEach(n => renderData[n] = data[n] || 0);
-          renderMainTable(renderData);
-        }
-      });
-    } else {
-      renderLocalData();
-    }
+    refreshUI();
   } else { alert("❌ Falsches Passwort! (admin123)"); document.getElementById('adminPassword').value = ''; }
 }
 
 function logoutAdmin() {
-  isAdminLoggedIn = false;
   sessionStorage.removeItem('adminAuth');
   document.getElementById('adminActions').style.display = 'none';
-  // Tabelle sofort ohne Admin-Buttons neu rendern
-  if (useFirebase && mainDocRef) {
-    getDoc(mainDocRef).then(snap => {
-      if (snap.exists()) {
-        const data = snap.data();
-        const renderData = {};
-        names.forEach(n => renderData[n] = data[n] || 0);
-        renderMainTable(renderData);
-      }
-    });
-  } else {
-    renderLocalData();
-  }
+  refreshUI();
   alert("👋 Admin-Logout");
 }
 
 function checkAdminSession() {
-  if (sessionStorage.getItem('adminAuth') === 'true') {
-    isAdminLoggedIn = true;
+  if (isAdmin()) {
     document.getElementById('adminActions').style.display = 'block';
   }
+  refreshUI();
 }
 
 function handleUrlParam() {
