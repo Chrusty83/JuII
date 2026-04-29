@@ -64,6 +64,7 @@
     .add { background: #0a84ff; color: white; }
     .pay { background: #00c853; color: white; }
     .cancel { background: #6c757d; color: white; }
+    .admin-login-btn { background: #5a5fcf; color: white; }
     .qr-grid canvas {
       background: white;
       border-radius: 12px;
@@ -114,17 +115,17 @@
       overflow-y: auto;
       text-align: left;
     }
-    .status-badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: bold;
-      margin-bottom: 10px;
+    footer {
+      font-size: 11px;
+      margin-top: 30px;
+      opacity: 0.5;
+      color: #888;
     }
-    .status-badge.online { background: #4caf50; color: #000; }
-    .status-badge.offline { background: #f44336; color: #fff; }
-    .status-badge.local { background: #2196f3; color: #fff; }
+    .footer-status {
+      font-size: 10px;
+      margin-top: 10px;
+      color: #555;
+    }
     .loading-spinner {
       display: inline-block;
       width: 20px;
@@ -136,19 +137,17 @@
       margin-left: 10px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    footer { font-size: 12px; margin-top: 30px; opacity: 0.6; }
   </style>
 </head>
 <body>
 
 <h1>🍺 JUII BIERDECKEL 🍺</h1>
-<div id="syncStatus" style="margin-bottom: 10px;"></div>
 
 <div class="glass-card">
   <h2>📋 Offene Biere</h2>
   <div style="overflow-x: auto;">
     <table>
-      <thead><tr><th>Name</th><th>🍺 Anzahl / Betrag</th><th>Aktionen</th></tr></thead>
+      <thead><tr><th>Name</th><th>🍺 Anzahl / Betrag</th><th>Aktionen</th><tr></thead>
       <tbody id="tableBody">
         <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></tr>
       </tbody>
@@ -172,10 +171,9 @@
 
 <div class="glass-card">
   <h2>🔐 Admin Bereich</h2>
-  <p style="font-size:13px; margin:0 0 10px;">🔑 Passwort: <strong style="background:#2a2a3a; padding:3px 10px; border-radius:20px;">admin123</strong></p>
   <div>
     <input type="password" id="adminPassword" placeholder="Passwort eingeben" autocomplete="off">
-    <button id="loginBtn" class="add" style="background:#5a5fcf;">🔓 Login</button>
+    <button id="loginBtn" class="admin-login-btn">🔓 Login</button>
   </div>
   <div id="adminActions" style="display:none; margin-top: 20px;">
     <button id="resetAllBtn" style="background:#c44536;">🧹 Alle Biere zurücksetzen</button>
@@ -196,7 +194,9 @@
   </div>
 </div>
 
-<footer>🍻 Admin-Passwort: admin123 | Daten werden live synchronisiert</footer>
+<footer>
+  <span id="connectionStatus"></span>
+</footer>
 
 <script>
   // ==================== FIREBASE KONFIGURATION ====================
@@ -210,7 +210,7 @@
   measurementId: "G-2NNFYKSX3L"
   };
   
-  // ==================== EINFACHES ADMIN PASSWORT ====================
+  // ==================== ADMIN PASSWORT ====================
   const ADMIN_PASSWORD = "admin123";
   
   let isAdminLoggedIn = false;
@@ -235,10 +235,10 @@
     }
   }
   
-  function updateSyncStatus(status, message) {
-    const statusDiv = document.getElementById('syncStatus');
+  function updateConnectionStatus(status) {
+    const statusDiv = document.getElementById('connectionStatus');
     if (statusDiv) {
-      statusDiv.innerHTML = `<span class="status-badge ${status}">${message}</span>`;
+      statusDiv.innerHTML = status;
     }
   }
   
@@ -247,7 +247,7 @@
     const tbody = document.getElementById('tableBody');
     if (!tbody) return;
     tbody.innerHTML = '';
-    if (!data) { tbody.innerHTML = '<tr><td colspan="3">📭 Keine Daten</td></tr>'; return; }
+    if (!data) { tbody.innerHTML = '</table><td colspan="3">📭 Keine Daten</td></tr>'; return; }
     for (let name of names) {
       const count = data[name] || 0;
       const total = count * BEER_PRICE;
@@ -330,7 +330,7 @@
     renderMainTable(data);
     updateHistoryUI(data.history);
     renderMonthlyChart(data.history);
-    updateSyncStatus('local', '💾 Lokaler Modus');
+    updateConnectionStatus('💾 Lokaler Speicher (Offline-Modus)');
   }
   
   async function addBeerLocal(name) {
@@ -348,14 +348,14 @@
   }
   
   async function resetLocal() {
-    if (!isAdminLoggedIn) { alert("Keine Admin-Rechte - bitte zuerst als Admin anmelden!"); return false; }
+    if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
     let data = loadLocalData();
     if (data) { names.forEach(n => data[n] = 0); saveLocalData(data); renderLocalData(); alert("✅ Alle Biere zurückgesetzt"); return true; }
     return false;
   }
   
   async function clearHistoryLocal() {
-    if (!isAdminLoggedIn) { alert("Keine Admin-Rechte - bitte zuerst als Admin anmelden!"); return false; }
+    if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
     let data = loadLocalData();
     if (data) { data.history = []; saveLocalData(data); renderLocalData(); alert("✅ Verlauf gelöscht"); return true; }
     return false;
@@ -384,7 +384,7 @@
   }
   
   async function resetFirebase() {
-    if (!isAdminLoggedIn) { alert("Keine Admin-Rechte - bitte zuerst als Admin anmelden!"); return false; }
+    if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
     if (!mainDocRef) return false;
     const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
     const snap = await getDoc(mainDocRef);
@@ -399,7 +399,7 @@
   }
   
   async function clearHistoryFirebase() {
-    if (!isAdminLoggedIn) { alert("Keine Admin-Rechte - bitte zuerst als Admin anmelden!"); return false; }
+    if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
     if (!mainDocRef) return false;
     const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
     const snap = await getDoc(mainDocRef);
@@ -415,7 +415,7 @@
   
   // ==================== FIREBASE INIT ====================
   async function initFirebase() {
-    updateSyncStatus('offline', '📡 Verbinde mit Firebase...');
+    updateConnectionStatus('📡 Verbinde mit Firebase...');
     
     try {
       const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js");
@@ -442,7 +442,7 @@
         renderMonthlyChart(data.history || []);
       }
       
-      updateSyncStatus('online', '✅ Firebase verbunden');
+      updateConnectionStatus('✅ Firebase verbunden (Live-Synchronisation)');
       useFirebase = true;
       
       unsubscribe = onSnapshot(mainDocRef, (snapshot) => {
@@ -459,7 +459,7 @@
       return true;
     } catch (err) {
       console.error("Firebase Fehler:", err);
-      updateSyncStatus('offline', '⚠️ Firebase Fehler – Lokaler Modus');
+      updateConnectionStatus('⚠️ Firebase nicht erreichbar – Verwende lokalen Speicher');
       renderLocalData();
       useFirebase = false;
       return false;
@@ -519,9 +519,9 @@
       sessionStorage.setItem('adminAuth', 'true');
       document.getElementById('adminActions').style.display = 'block';
       passwordInput.value = '';
-      alert("✅ Admin-Login erfolgreich!");
+      alert("✅ Login erfolgreich!");
     } else {
-      alert("❌ Falsches Passwort!\n\nVerwenden Sie: admin123");
+      alert("❌ Falsches Passwort!");
       passwordInput.value = '';
     }
   }
@@ -530,7 +530,6 @@
     isAdminLoggedIn = false;
     sessionStorage.removeItem('adminAuth');
     document.getElementById('adminActions').style.display = 'none';
-    alert("👋 Admin-Logout");
   }
   
   function checkAdminSession() {
@@ -556,7 +555,6 @@
     await initFirebase();
     handleUrlParam();
     
-    // Event-Listener mit addEventListener statt onclick
     const loginBtn = document.getElementById('loginBtn');
     if (loginBtn) loginBtn.addEventListener('click', loginAdmin);
     
