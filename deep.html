@@ -51,10 +51,12 @@
     th { background: #252536; color: #ffda88; }
     .beer-icons { font-size: 1.4rem; letter-spacing: 2px; }
     .beer-cost { font-size: 13px; color: #aaa; margin-top: 4px; }
-    button {
+    
+    /* Alle Buttons mit einheitlichem Radius */
+    button, .add, .pay, .admin-login-btn, .reset-btn, .clear-btn, .logout-btn, .popup-confirm, .popup-cancel {
       padding: 8px 16px;
       border: none;
-      border-radius: 60px;
+      border-radius: 40px !important;
       font-weight: bold;
       font-size: 0.85rem;
       cursor: pointer;
@@ -63,14 +65,16 @@
     }
     button:active { transform: scale(0.96); }
     button:hover { opacity: 0.85; }
-    .add { background: #0a84ff; color: white; border-radius: 60px; }
-    .pay { background: #2e7d64; color: white; border-radius: 60px; }
-    .admin-login-btn { background: #5a5fcf; color: white; border-radius: 60px; }
-    .reset-btn { background: #c44536; color: white; border-radius: 60px; }
-    .clear-btn { background: #e68a2e; color: white; border-radius: 60px; }
-    .logout-btn { background: #666; color: white; border-radius: 60px; }
-    .popup-confirm { background: #2e7d64; color: white; border-radius: 60px; }
-    .popup-cancel { background: #6c757d; color: white; border-radius: 60px; }
+    
+    .add { background: #0a84ff; color: white; }
+    .pay { background: #2e7d64; color: white; }
+    .admin-login-btn { background: #5a5fcf; color: white; }
+    .reset-btn { background: #c44536; color: white; }
+    .clear-btn { background: #e68a2e; color: white; }
+    .logout-btn { background: #666; color: white; }
+    .popup-confirm { background: #2e7d64; color: white; }
+    .popup-cancel { background: #6c757d; color: white; }
+    
     .qr-grid canvas {
       background: white;
       border-radius: 12px;
@@ -120,7 +124,7 @@
       background: #2a2a36;
       border: 1px solid #444;
       padding: 10px 14px;
-      border-radius: 60px;
+      border-radius: 40px;
       color: white;
       font-size: 1rem;
       width: 220px;
@@ -422,7 +426,7 @@ function renderMainTable(data) {
       <tr>
         <td style="font-weight:500;">${escapeHtml(name)}</td>
         <td class="beer-icons">${icons}<br><span class="beer-cost">${formatEuro(total)}</span></td>
-        <td>
+        <td style="white-space: nowrap;">
           <button class="add" data-name="${escapeHtml(name)}">➕ +1 Bier</button>
           <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">💰 Ich habe bezahlt</button>
         </td>
@@ -497,14 +501,22 @@ function renderQRTable() {
     const id = `qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`;
     qrBody.innerHTML += `<tr><td style="font-weight:bold;">${escapeHtml(name)}</td><td><canvas id="${id}" width="120" height="120"></canvas></td></tr>`;
   });
+  
+  // QR-Codes mit Verzögerung generieren
   setTimeout(() => {
     names.forEach(name => {
       const canvas = document.getElementById(`qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`);
       if (canvas) {
-        QRCode.toCanvas(canvas, `${baseUrl}?add=${encodeURIComponent(name)}`, { width: 110, margin: 1 });
+        try {
+          QRCode.toCanvas(canvas, `${baseUrl}?add=${encodeURIComponent(name)}`, { width: 110, margin: 1 }, function(error) {
+            if (error) console.error("QR Error:", error);
+          });
+        } catch(e) {
+          console.error("QR Generation error:", e);
+        }
       }
     });
-  }, 100);
+  }, 200);
 }
 
 // ==================== LOCALSTORAGE ====================
@@ -661,6 +673,14 @@ async function initFirebase() {
         renderMainTable(newData);
         updateHistoryUI(snapData.history || []);
         renderMonthlyChart(snapData.history || []);
+        
+        // Aktualisiere die data-count Attribute der Pay-Buttons
+        document.querySelectorAll('.pay').forEach(btn => {
+          const name = btn.dataset.namePay;
+          if (name && newData[name] !== undefined) {
+            btn.dataset.count = newData[name];
+          }
+        });
       }
     });
     
@@ -746,4 +766,4 @@ async function start() {
 start();
 </script>
 </body>
-  </html>
+</html>
