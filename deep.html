@@ -58,7 +58,9 @@
       font-size: 0.85rem;
       cursor: pointer;
       margin: 4px 6px;
+      transition: transform 0.1s;
     }
+    button:active { transform: scale(0.96); }
     .add { background: #0a84ff; color: white; }
     .pay { background: #00c853; color: white; }
     .cancel { background: #6c757d; color: white; }
@@ -170,10 +172,10 @@
 
 <div class="glass-card">
   <h2>🔐 Admin Bereich</h2>
-  <p style="font-size:13px; margin:0 0 10px;">Standard Passwort: <strong>admin123</strong></p>
+  <p style="font-size:13px; margin:0 0 10px;">🔑 Passwort: <strong style="background:#2a2a3a; padding:3px 10px; border-radius:20px;">admin123</strong></p>
   <div>
-    <input type="password" id="adminPassword" placeholder="Admin Passwort" autocomplete="off">
-    <button onclick="loginWithHash()" class="add" style="background:#5a5fcf;">🔓 Login</button>
+    <input type="password" id="adminPassword" placeholder="Passwort eingeben" autocomplete="off">
+    <button onclick="loginSimple()" class="add" style="background:#5a5fcf;">🔓 Login</button>
   </div>
   <div id="adminActions" style="display:none; margin-top: 20px;">
     <button id="resetAllBtn" style="background:#c44536;">🧹 Alle Biere zurücksetzen</button>
@@ -194,7 +196,7 @@
   </div>
 </div>
 
-<footer>🍻 Admin-Passwort: admin123</footer>
+<footer>🍻 Admin-Passwort: admin123 | Daten werden live synchronisiert</footer>
 
 <script>
   // ==================== FIREBASE KONFIGURATION ====================
@@ -208,11 +210,8 @@
   measurementId: "G-2NNFYKSX3L"
   };
   
-  // ==================== ADMIN PASSWORT ====================
-  // Passwort: admin123
-  // Korrekter SHA-256 Hash für "admin123":
-  // "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9"
-  const ADMIN_PASSWORD_HASH = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9";
+  // ==================== EINFACHES ADMIN PASSWORT ====================
+  const ADMIN_PASSWORD = "admin123";
   
   let isAdminLoggedIn = false;
   let useFirebase = false;
@@ -315,7 +314,7 @@
     }, 100);
   }
   
-  // ==================== LOCALSTORAGE FALLBACK ====================
+  // ==================== LOCALSTORAGE ====================
   function loadLocalData() {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored ? JSON.parse(stored) : null;
@@ -362,7 +361,7 @@
     return false;
   }
   
-  // ==================== FIREBASE OPERATIONEN ====================
+  // ==================== FIREBASE ====================
   async function addBeerFirebase(name) {
     if (!mainDocRef) return;
     const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
@@ -503,19 +502,15 @@
     currentPayPerson = null;
   }
   
-  // ==================== ADMIN LOGIN ====================
-  async function hashPassword(pwd) {
-    const enc = new TextEncoder();
-    const hash = await crypto.subtle.digest('SHA-256', enc.encode(pwd));
-    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-  
-  window.loginWithHash = async function() {
+  // ==================== EINFACHER ADMIN LOGIN (KEIN HASH) ====================
+  window.loginSimple = function() {
     const pwd = document.getElementById('adminPassword').value;
-    if (!pwd) { alert("Bitte Passwort eingeben"); return; }
-    const hash = await hashPassword(pwd);
+    if (!pwd) { 
+      alert("Bitte Passwort eingeben"); 
+      return; 
+    }
     
-    if (hash === ADMIN_PASSWORD_HASH) {
+    if (pwd === ADMIN_PASSWORD) {
       isAdminLoggedIn = true;
       sessionStorage.setItem('adminAuth', 'true');
       document.getElementById('adminActions').style.display = 'block';
