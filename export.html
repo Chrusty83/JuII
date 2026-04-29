@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Export CSV</title>
+</head>
+
+<body>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  // 🔴 Deine Firebase Config
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const ref = doc(db, "strichliste", "main");
+
+/* CSV GENERATOR */
+function generateCSV(data){
+  let csv = [];
+
+  // Header
+  csv.push("Name;Biere;Kosten (€)");
+
+  Object.keys(data).forEach(key=>{
+    if(key === "history") return;
+
+    const beers = data[key] || 0;
+    const cost = beers * 2;
+
+    csv.push(`${key};${beers};${cost}`);
+  });
+
+  csv.push(""); // Leerzeile
+  csv.push("Verlauf:");
+  csv.push("Name;Zeit");
+
+  (data.history || []).forEach(entry=>{
+    csv.push(`${entry.name};${entry.time}`);
+  });
+
+  return csv.join("\n");
+}
+
+/* DOWNLOAD */
+function downloadCSV(content){
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "bierliste_export.csv";
+
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/* LOAD + EXPORT */
+async function run(){
+  const snap = await getDoc(ref);
+
+  if(!snap.exists()){
+    alert("Keine Daten gefunden");
+    return;
+  }
+
+  const data = snap.data();
+
+  const csv = generateCSV(data);
+
+  downloadCSV(csv);
+}
+
+run();
+</script>
+</body>
+</html>
