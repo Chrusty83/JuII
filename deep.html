@@ -162,6 +162,7 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     
+    /* Bestätigungs-Popup für Zahlung */
     .confirm-popup {
       display: none;
       position: fixed;
@@ -196,6 +197,34 @@
       gap: 15px;
       justify-content: center;
       margin-top: 20px;
+    }
+    
+    /* Toast-Popup für Bier hinzugefügt */
+    .toast-popup {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #2e7d64;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 60px;
+      font-weight: bold;
+      font-size: 1rem;
+      z-index: 1002;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      animation: fadeInUp 0.3s ease-out;
+      pointer-events: none;
+    }
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
     }
   </style>
 </head>
@@ -283,6 +312,22 @@ let pendingPayAmount = 0;
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 const STORAGE_KEY = "juii_bierdeckel_data";
 
+// Toast-Popup Funktion
+function showToast(message, isError = false) {
+  const toast = document.createElement('div');
+  toast.className = 'toast-popup';
+  toast.style.background = isError ? '#c44536' : '#2e7d64';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 300);
+  }, 2000);
+}
+
 function escapeHtml(str) { return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
 function formatEuro(amount) { return amount === Math.floor(amount) ? `${Math.floor(amount)} €` : `${amount.toFixed(2)} €`; }
 function updateConnectionStatus(msg) { const div = document.getElementById('connectionStatus'); if (div) div.innerHTML = msg; }
@@ -322,7 +367,7 @@ async function resetBeerCountForPerson(person) {
 }
 
 async function removeBeerFromPerson(person) {
-  if (!isAdminLoggedIn) { alert("Keine Berechtigung! Nur für Admin."); return; }
+  if (!isAdminLoggedIn) { showToast("Keine Berechtigung! Nur für Admin.", true); return; }
   
   if (useFirebase && mainDocRef) {
     const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
@@ -334,8 +379,9 @@ async function removeBeerFromPerson(person) {
         current[person] = currentCount - 1;
         current.history = [...(current.history || []), { name: `${person} (1 Bier entfernt)`, time: new Date().toISOString() }];
         await setDoc(mainDocRef, current);
+        showToast(`🍺 Ein Bier von ${person} wurde entfernt!`);
       } else {
-        alert(`${person} hat keine Biere zum Entfernen.`);
+        showToast(`${person} hat keine Biere zum Entfernen.`, true);
       }
     }
   } else {
@@ -348,8 +394,9 @@ async function removeBeerFromPerson(person) {
       data.history.push({ name: `${person} (1 Bier entfernt)`, time: new Date().toISOString() });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       refreshUI();
+      showToast(`🍺 Ein Bier von ${person} wurde entfernt!`);
     } else {
-      alert(`${person} hat keine Biere zum Entfernen.`);
+      showToast(`${person} hat keine Biere zum Entfernen.`, true);
     }
   }
 }
@@ -511,6 +558,7 @@ async function addBeerLocal(name) {
   data.history.push({ name, time: new Date().toISOString() });
   saveLocalData(data);
   refreshUI();
+  showToast(`🍺 Ein Bier für ${name} wurde hinzugefügt!`);
 }
 
 async function resetLocal() {
@@ -535,6 +583,7 @@ async function addBeerFirebase(name) {
   current[name] = (current[name] || 0) + 1;
   current.history = [...(current.history || []), { name, time: new Date().toISOString() }];
   await setDoc(mainDocRef, current);
+  showToast(`🍺 Ein Bier für ${name} wurde hinzugefügt!`);
 }
 
 async function resetFirebase() {
@@ -558,6 +607,7 @@ async function clearHistoryFirebase() {
 async function addBeer(name) {
   if (useFirebase && mainDocRef) await addBeerFirebase(name);
   else await addBeerLocal(name);
+  refreshUI();
 }
 
 async function initFirebase() {
@@ -594,9 +644,9 @@ function loginAdmin() {
     sessionStorage.setItem('adminAuth', 'true');
     document.getElementById('adminActions').style.display = 'block';
     document.getElementById('adminPassword').value = '';
-    alert("✅ Login erfolgreich!");
+    showToast("✅ Admin-Login erfolgreich!");
     refreshUI();
-  } else { alert("❌ Falsches Passwort! (admin123)"); document.getElementById('adminPassword').value = ''; }
+  } else { showToast("❌ Falsches Passwort!", true); document.getElementById('adminPassword').value = ''; }
 }
 
 function logoutAdmin() {
@@ -604,7 +654,7 @@ function logoutAdmin() {
   sessionStorage.removeItem('adminAuth');
   document.getElementById('adminActions').style.display = 'none';
   refreshUI();
-  alert("👋 Admin-Logout");
+  showToast("👋 Admin-Logout");
 }
 
 function checkAdminSession() {
