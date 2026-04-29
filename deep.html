@@ -217,8 +217,16 @@
   measurementId: "G-2NNFYKSX3L"
   };
   
-  // ==================== ADMIN HASH ====================
-  const ADMIN_PASSWORD_HASH = "8b5c3e7a9f1d4b2c6e8a0f3d7b9c1e5a7d3f6b8c0a2e4d6f8a1c3e5b7d9f0a2c";
+  // ==================== ADMIN PASSWORT ====================
+  // Passwort: admin123
+  // SHA-256 Hash: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+  const ADMIN_PASSWORD_HASH = "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b";
+  
+  // Falls Sie ein anderes Passwort möchten:
+  // 1. Besuchen Sie: https://emn178.github.io/online-tools/sha256.html
+  // 2. Geben Sie Ihr Wunschpasswort ein (z.B. "MeinSicheresPasswort")
+  // 3. Kopieren Sie den generierten Hash (64 Zeichen)
+  // 4. Ersetzen Sie den ADMIN_PASSWORD_HASH oben
   
   let isAdminLoggedIn = false;
   let useFirebase = false;
@@ -234,13 +242,7 @@
   // ==================== HILFSFUNKTIONEN ====================
   function escapeHtml(str) { return str.replace(/[&<>]/g, function(m) { return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'; }); }
   
-  /**
-   * Formatiert einen Euro-Betrag:
-   * - Wenn Nachkommastellen .00 sind → nur ganze Zahl anzeigen (z.B. "2 €")
-   * - Wenn Nachkommastellen nicht .00 sind → mit 2 Nachkommastellen anzeigen (z.B. "2.50 €")
-   */
   function formatEuro(amount) {
-    // Prüfen ob der Betrag eine .00 Nachkommastelle hat
     if (amount === Math.floor(amount)) {
       return `${Math.floor(amount)} €`;
     } else {
@@ -352,7 +354,6 @@
     updateHistoryUI(data.history);
     renderMonthlyChart(data.history);
     updateSyncStatus('local', '💾 Lokaler Modus – Daten im Browser gespeichert');
-    updateDebugInfo('Verwende localStorage (Firebase nicht erreichbar)');
   }
   
   async function addBeerLocal(name) {
@@ -436,10 +437,8 @@
   // ==================== FIREBASE INIT ====================
   async function initFirebase() {
     updateSyncStatus('offline', '📡 Verbinde mit Firebase...');
-    updateDebugInfo('Prüfe Firebase-Konfiguration...');
     
     if (!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey.length < 20) {
-      updateDebugInfo('❌ Firebase API Key fehlt oder zu kurz!', true);
       updateSyncStatus('offline', '⚠️ Firebase nicht konfiguriert – Verwende localStorage');
       renderLocalData();
       useFirebase = false;
@@ -454,13 +453,9 @@
       const db = getFirestore(app);
       mainDocRef = doc(db, "strichliste", "juii_main");
       
-      updateDebugInfo(`Verbinde mit: ${FIREBASE_CONFIG.projectId}.firebaseio.com`);
-      
       const testSnap = await getDoc(mainDocRef);
-      updateDebugInfo(`Firebase Verbindung erfolgreich! Dokument existiert: ${testSnap.exists()}`);
       
       if (!testSnap.exists()) {
-        updateDebugInfo('Dokument existiert noch nicht. Erstelle es beim ersten +1 Bier.');
         const emptyData = { history: [] };
         names.forEach(n => emptyData[n] = 0);
         renderMainTable(emptyData);
@@ -473,8 +468,6 @@
         renderMainTable(renderData);
         updateHistoryUI(data.history || []);
         renderMonthlyChart(data.history || []);
-        const totalBeers = Object.values(renderData).reduce((a,b)=>a+b, 0);
-        updateDebugInfo(`✅ Daten geladen! Biere: ${totalBeers} Stück`);
       }
       
       updateSyncStatus('online', '✅ Firebase verbunden – Live-Synchronisation');
@@ -488,17 +481,12 @@
           renderMainTable(newData);
           updateHistoryUI(snapData.history || []);
           renderMonthlyChart(snapData.history || []);
-          updateDebugInfo(`🔄 Live-Update: Daten synchronisiert`);
         }
-      }, (err) => {
-        console.error("Listener Fehler:", err);
-        updateDebugInfo(`❌ Listener Fehler: ${err.message}`, true);
       });
       
       return true;
     } catch (err) {
       console.error("Firebase Init Fehler:", err);
-      updateDebugInfo(`❌ Firebase Fehler: ${err.message}`, true);
       updateSyncStatus('error', '⚠️ Firebase Fehler – Verwende localStorage');
       renderLocalData();
       useFirebase = false;
@@ -544,7 +532,7 @@
     currentPayPerson = null;
   }
   
-  // ==================== ADMIN ====================
+  // ==================== ADMIN LOGIN ====================
   async function hashPassword(pwd) {
     const enc = new TextEncoder();
     const hash = await crypto.subtle.digest('SHA-256', enc.encode(pwd));
@@ -553,21 +541,32 @@
   
   window.loginWithHash = async function() {
     const pwd = document.getElementById('adminPassword').value;
-    if (!pwd) { alert("Passwort eingeben"); return; }
+    if (!pwd) { alert("Bitte Passwort eingeben"); return; }
     const hash = await hashPassword(pwd);
+    
+    // Debug-Ausgabe in Konsole
+    console.log("Eingegebenes Passwort:", pwd);
+    console.log("Generierter Hash:", hash);
+    console.log("Erwarteter Hash:", ADMIN_PASSWORD_HASH);
+    
     if (hash === ADMIN_PASSWORD_HASH) {
       isAdminLoggedIn = true;
       sessionStorage.setItem('adminAuth', 'true');
       document.getElementById('adminActions').style.display = 'block';
       document.getElementById('adminPassword').value = '';
-      alert("✅ Login erfolgreich");
-    } else { alert("❌ Falsches Passwort"); }
+      alert("✅ Login erfolgreich!");
+      updateDebugInfo(`Admin-Login erfolgreich um ${new Date().toLocaleTimeString()}`);
+    } else { 
+      alert("❌ Falsches Passwort!\n\nVerwenden Sie: admin123");
+      updateDebugInfo(`❌ Login fehlgeschlagen. Falsches Passwort.`, true);
+    }
   };
   
   window.logoutAdmin = function() {
     isAdminLoggedIn = false;
     sessionStorage.removeItem('adminAuth');
     document.getElementById('adminActions').style.display = 'none';
+    alert("👋 Admin-Logout");
   };
   
   function checkAdminSession() {
