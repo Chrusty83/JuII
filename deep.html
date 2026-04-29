@@ -162,7 +162,6 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     
-    /* Bestätigungs-Popup für Zahlung */
     .confirm-popup {
       display: none;
       position: fixed;
@@ -199,7 +198,6 @@
       margin-top: 20px;
     }
     
-    /* Toast-Popup für Bier hinzugefügt */
     .toast-popup {
       position: fixed;
       bottom: 30px;
@@ -215,6 +213,7 @@
       box-shadow: 0 4px 15px rgba(0,0,0,0.3);
       animation: fadeInUp 0.3s ease-out;
       pointer-events: none;
+      white-space: nowrap;
     }
     @keyframes fadeInUp {
       from {
@@ -312,7 +311,16 @@ let pendingPayAmount = 0;
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 const STORAGE_KEY = "juii_bierdeckel_data";
 
-// Toast-Popup Funktion
+// Gesamtanzahl der Biere berechnen
+function getTotalBeerCount(data) {
+  let total = 0;
+  for (let name of names) {
+    total += data[name] || 0;
+  }
+  return total;
+}
+
+// Toast-Popup mit Gesamtanzahl
 function showToast(message, isError = false) {
   const toast = document.createElement('div');
   toast.className = 'toast-popup';
@@ -325,7 +333,7 @@ function showToast(message, isError = false) {
     setTimeout(() => {
       if (toast.parentNode) toast.parentNode.removeChild(toast);
     }, 300);
-  }, 2000);
+  }, 2500);
 }
 
 function escapeHtml(str) { return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
@@ -379,7 +387,8 @@ async function removeBeerFromPerson(person) {
         current[person] = currentCount - 1;
         current.history = [...(current.history || []), { name: `${person} (1 Bier entfernt)`, time: new Date().toISOString() }];
         await setDoc(mainDocRef, current);
-        showToast(`🍺 Ein Bier von ${person} wurde entfernt!`);
+        const newTotal = getTotalBeerCount(current);
+        showToast(`🍺 Ein Bier von ${person} wurde entfernt! (Insgesamt: ${newTotal} Bier)`);
       } else {
         showToast(`${person} hat keine Biere zum Entfernen.`, true);
       }
@@ -394,7 +403,8 @@ async function removeBeerFromPerson(person) {
       data.history.push({ name: `${person} (1 Bier entfernt)`, time: new Date().toISOString() });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       refreshUI();
-      showToast(`🍺 Ein Bier von ${person} wurde entfernt!`);
+      const newTotal = getTotalBeerCount(data);
+      showToast(`🍺 Ein Bier von ${person} wurde entfernt! (Insgesamt: ${newTotal} Bier)`);
     } else {
       showToast(`${person} hat keine Biere zum Entfernen.`, true);
     }
@@ -554,11 +564,13 @@ function renderLocalData() {
 async function addBeerLocal(name) {
   let data = loadLocalData();
   if (!data) { data = { history: [] }; names.forEach(n => data[n] = 0); }
+  const oldTotal = getTotalBeerCount(data);
   data[name] = (data[name] || 0) + 1;
   data.history.push({ name, time: new Date().toISOString() });
   saveLocalData(data);
   refreshUI();
-  showToast(`🍺 Ein Bier für ${name} wurde hinzugefügt!`);
+  const newTotal = getTotalBeerCount(data);
+  showToast(`🍺 ${name}: +1 Bier (Insgesamt: ${newTotal} Bier)`);
 }
 
 async function resetLocal() {
@@ -580,10 +592,13 @@ async function addBeerFirebase(name) {
   const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
   const snap = await getDoc(mainDocRef);
   let current = snap.exists() ? snap.data() : {};
+  const oldTotal = getTotalBeerCount(current);
   current[name] = (current[name] || 0) + 1;
   current.history = [...(current.history || []), { name, time: new Date().toISOString() }];
   await setDoc(mainDocRef, current);
-  showToast(`🍺 Ein Bier für ${name} wurde hinzugefügt!`);
+  refreshUI();
+  const newTotal = getTotalBeerCount(current);
+  showToast(`🍺 ${name}: +1 Bier (Insgesamt: ${newTotal} Bier)`);
 }
 
 async function resetFirebase() {
@@ -607,7 +622,6 @@ async function clearHistoryFirebase() {
 async function addBeer(name) {
   if (useFirebase && mainDocRef) await addBeerFirebase(name);
   else await addBeerLocal(name);
-  refreshUI();
 }
 
 async function initFirebase() {
