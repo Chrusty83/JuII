@@ -326,6 +326,10 @@ function updateConnectionStatus(msg) {
 
 // ==================== BESTÄTIGUNGS-POPUP ====================
 function showConfirmPopup(name, count) {
+  if (count === 0) {
+    alert("Keine offenen Biere zum Bezahlen.");
+    return;
+  }
   pendingPayPerson = name;
   pendingPayAmount = count * BEER_PRICE;
   document.getElementById('confirmName').innerText = name;
@@ -435,8 +439,8 @@ function renderMainTable(data) {
         <td class="beer-icons">${icons}<br><span class="beer-cost">${formatEuro(total)}</span></td>
         <td>
           <div class="action-buttons">
-            <button class="add" data-name="${escapeHtml(name)}">➕ +1 Bier</button>
-            <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">Ich habe bezahlt</button>
+            <button class="add" data-name="${escapeHtml(name)}">+1 Bier</button>
+            <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">habe bezahlt</button>
           </div>
         </td>
       </tr>
@@ -447,11 +451,7 @@ function renderMainTable(data) {
     btn.onclick = () => {
       const name = btn.dataset.namePay;
       const count = parseInt(btn.dataset.count) || 0;
-      if (count > 0) {
-        showConfirmPopup(name, count);
-      } else {
-        alert("Keine offenen Biere zum Bezahlen.");
-      }
+      showConfirmPopup(name, count);
     };
   });
 }
@@ -719,7 +719,7 @@ function loginAdmin() {
     passwordInput.value = '';
     alert("✅ Login erfolgreich!");
   } else {
-    alert("❌ Falsches Passwort! (admin123)");
+    alert("❌ Falsches Passwort!");
     passwordInput.value = '';
   }
 }
