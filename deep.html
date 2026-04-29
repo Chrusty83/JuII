@@ -175,12 +175,12 @@
   <p style="font-size:13px; margin:0 0 10px;">🔑 Passwort: <strong style="background:#2a2a3a; padding:3px 10px; border-radius:20px;">admin123</strong></p>
   <div>
     <input type="password" id="adminPassword" placeholder="Passwort eingeben" autocomplete="off">
-    <button onclick="loginSimple()" class="add" style="background:#5a5fcf;">🔓 Login</button>
+    <button id="loginBtn" class="add" style="background:#5a5fcf;">🔓 Login</button>
   </div>
   <div id="adminActions" style="display:none; margin-top: 20px;">
     <button id="resetAllBtn" style="background:#c44536;">🧹 Alle Biere zurücksetzen</button>
     <button id="clearHistoryBtn" style="background:#e68a2e;">🗑️ Verlauf löschen</button>
-    <button onclick="logoutAdmin()" style="background:#666;">🚪 Logout</button>
+    <button id="logoutBtn" style="background:#666;">🚪 Logout</button>
     <h3>📜 Letzte Aktionen</h3>
     <div class="history-list"><ul id="history"></ul></div>
   </div>
@@ -348,14 +348,14 @@
   }
   
   async function resetLocal() {
-    if (!isAdminLoggedIn) { alert("Keine Admin-Rechte"); return false; }
+    if (!isAdminLoggedIn) { alert("Keine Admin-Rechte - bitte zuerst als Admin anmelden!"); return false; }
     let data = loadLocalData();
     if (data) { names.forEach(n => data[n] = 0); saveLocalData(data); renderLocalData(); alert("✅ Alle Biere zurückgesetzt"); return true; }
     return false;
   }
   
   async function clearHistoryLocal() {
-    if (!isAdminLoggedIn) { alert("Keine Admin-Rechte"); return false; }
+    if (!isAdminLoggedIn) { alert("Keine Admin-Rechte - bitte zuerst als Admin anmelden!"); return false; }
     let data = loadLocalData();
     if (data) { data.history = []; saveLocalData(data); renderLocalData(); alert("✅ Verlauf gelöscht"); return true; }
     return false;
@@ -384,7 +384,8 @@
   }
   
   async function resetFirebase() {
-    if (!isAdminLoggedIn || !mainDocRef) { alert("Keine Admin-Rechte"); return false; }
+    if (!isAdminLoggedIn) { alert("Keine Admin-Rechte - bitte zuerst als Admin anmelden!"); return false; }
+    if (!mainDocRef) return false;
     const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
     const snap = await getDoc(mainDocRef);
     if (snap.exists()) {
@@ -398,7 +399,8 @@
   }
   
   async function clearHistoryFirebase() {
-    if (!isAdminLoggedIn || !mainDocRef) { alert("Keine Admin-Rechte"); return false; }
+    if (!isAdminLoggedIn) { alert("Keine Admin-Rechte - bitte zuerst als Admin anmelden!"); return false; }
+    if (!mainDocRef) return false;
     const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
     const snap = await getDoc(mainDocRef);
     if (snap.exists()) {
@@ -502,31 +504,34 @@
     currentPayPerson = null;
   }
   
-  // ==================== EINFACHER ADMIN LOGIN (KEIN HASH) ====================
-  window.loginSimple = function() {
-    const pwd = document.getElementById('adminPassword').value;
-    if (!pwd) { 
-      alert("Bitte Passwort eingeben"); 
-      return; 
-    }
+  function closePopup() {
+    document.getElementById('popup').style.display = 'none';
+    currentPayPerson = null;
+  }
+  
+  // ==================== ADMIN LOGIN ====================
+  function loginAdmin() {
+    const passwordInput = document.getElementById('adminPassword');
+    const password = passwordInput.value;
     
-    if (pwd === ADMIN_PASSWORD) {
+    if (password === ADMIN_PASSWORD) {
       isAdminLoggedIn = true;
       sessionStorage.setItem('adminAuth', 'true');
       document.getElementById('adminActions').style.display = 'block';
-      document.getElementById('adminPassword').value = '';
-      alert("✅ Login erfolgreich!");
-    } else { 
+      passwordInput.value = '';
+      alert("✅ Admin-Login erfolgreich!");
+    } else {
       alert("❌ Falsches Passwort!\n\nVerwenden Sie: admin123");
+      passwordInput.value = '';
     }
-  };
+  }
   
-  window.logoutAdmin = function() {
+  function logoutAdmin() {
     isAdminLoggedIn = false;
     sessionStorage.removeItem('adminAuth');
     document.getElementById('adminActions').style.display = 'none';
     alert("👋 Admin-Logout");
-  };
+  }
   
   function checkAdminSession() {
     if (sessionStorage.getItem('adminAuth') === 'true') {
@@ -551,10 +556,30 @@
     await initFirebase();
     handleUrlParam();
     
-    document.getElementById('confirmPayBtn')?.addEventListener('click', (e) => { e.preventDefault(); onConfirmPayment(); });
-    document.getElementById('closePopupBtn')?.addEventListener('click', (e) => { e.preventDefault(); document.getElementById('popup').style.display = 'none'; currentPayPerson = null; });
-    document.getElementById('resetAllBtn')?.addEventListener('click', async () => { if (useFirebase) await resetFirebase(); else await resetLocal(); });
-    document.getElementById('clearHistoryBtn')?.addEventListener('click', async () => { if (useFirebase) await clearHistoryFirebase(); else await clearHistoryLocal(); });
+    // Event-Listener mit addEventListener statt onclick
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) loginBtn.addEventListener('click', loginAdmin);
+    
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.addEventListener('click', logoutAdmin);
+    
+    const confirmBtn = document.getElementById('confirmPayBtn');
+    if (confirmBtn) confirmBtn.addEventListener('click', onConfirmPayment);
+    
+    const closeBtn = document.getElementById('closePopupBtn');
+    if (closeBtn) closeBtn.addEventListener('click', closePopup);
+    
+    const resetBtn = document.getElementById('resetAllBtn');
+    if (resetBtn) resetBtn.addEventListener('click', async () => { 
+      if (useFirebase) await resetFirebase(); 
+      else await resetLocal(); 
+    });
+    
+    const clearBtn = document.getElementById('clearHistoryBtn');
+    if (clearBtn) clearBtn.addEventListener('click', async () => { 
+      if (useFirebase) await clearHistoryFirebase(); 
+      else await clearHistoryLocal(); 
+    });
   }
   
   start();
