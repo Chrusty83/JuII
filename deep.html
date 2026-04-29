@@ -213,9 +213,16 @@
   let isAdminLoggedIn = false;
   
   // ======================== FIREBASE / LOCALSTORAGE ========================
-  const FIREBASE_CONFIG = {
-    apiKey: "", authDomain: "", projectId: "", storageBucket: "", messagingSenderId: "", appId: ""
-  };
+  const firebaseConfig = {
+  apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
+  authDomain: "juii-strichliste.firebaseapp.com",
+  projectId: "juii-strichliste",
+  storageBucket: "juii-strichliste.firebasestorage.app",
+  messagingSenderId: "8081599971",
+  appId: "1:8081599971:web:6cc277281b040d995304d6",
+  measurementId: "G-2NNFYKSX3L"
+};
+
   const isFirebaseConfigured = FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId;
   
   const names = [
