@@ -52,7 +52,7 @@
     .beer-icons { font-size: 1.4rem; letter-spacing: 2px; }
     .beer-cost { font-size: 13px; color: #aaa; margin-top: 4px; }
     
-    button, .add, .remove, .pay, .admin-login-btn, .reset-btn, .clear-btn, .logout-btn, .popup-confirm, .popup-cancel {
+    button, .add, .remove, .pay, .admin-login-btn, .reset-btn, .clear-btn, .logout-btn, .export-btn, .popup-confirm, .popup-cancel {
       padding: 8px 16px;
       border: none;
       border-radius: 40px !important;
@@ -71,6 +71,7 @@
     .admin-login-btn { background: #5a5fcf; color: white; }
     .reset-btn { background: #c44536; color: white; }
     .clear-btn { background: #e68a2e; color: white; }
+    .export-btn { background: #2196f3; color: white; }
     .logout-btn { background: #666; color: white; }
     .popup-confirm { background: #2e7d64; color: white; }
     .popup-cancel { background: #6c757d; color: white; }
@@ -229,7 +230,7 @@
 <div class="glass-card qr-grid">
   <h2>📱 QR-Codes</h2>
   <p style="font-size:14px;">Scan zum Bier hinzufügen</p>
-  <div style="overflow-x: auto;"><table><tbody id="qrBody"></tbody></table></div>
+  <div style="overflow-x: auto;"><tr><tbody id="qrBody"></tbody></table></div>
 </div>
 
 <div class="glass-card">
@@ -239,9 +240,12 @@
     <button id="loginBtn" class="admin-login-btn">🔓 Login</button>
   </div>
   <div id="adminActions" style="display:none; margin-top: 20px;">
-    <button id="resetAllBtn" class="reset-btn">🧹 Alle Biere zurücksetzen</button>
-    <button id="clearHistoryBtn" class="clear-btn">🗑️ Verlauf löschen</button>
-    <button id="logoutBtn" class="logout-btn">🚪 Logout</button>
+    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 15px;">
+      <button id="exportCsvBtn" class="export-btn">📥 CSV Export (Datenbank)</button>
+      <button id="resetAllBtn" class="reset-btn">🧹 Alle Biere zurücksetzen</button>
+      <button id="clearHistoryBtn" class="clear-btn">🗑️ Verlauf löschen</button>
+      <button id="logoutBtn" class="logout-btn">🚪 Logout</button>
+    </div>
     <h3>📜 Letzte Aktionen</h3>
     <div class="history-list"><ul id="history"></ul></div>
   </div>
@@ -282,7 +286,6 @@ let pendingPayAmount = 0;
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 const STORAGE_KEY = "juii_bierdeckel_data";
 
-// Admin-Status aus sessionStorage auslesen
 function isAdmin() {
   return sessionStorage.getItem('adminAuth') === 'true';
 }
@@ -290,6 +293,76 @@ function isAdmin() {
 function escapeHtml(str) { return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
 function formatEuro(amount) { return amount === Math.floor(amount) ? `${Math.floor(amount)} €` : `${amount.toFixed(2)} €`; }
 function updateConnectionStatus(msg) { const div = document.getElementById('connectionStatus'); if (div) div.innerHTML = msg; }
+
+// ==================== CSV EXPORT ====================
+async function exportToCSV() {
+  let data = null;
+  let history = [];
+  let exportData = {};
+  
+  if (useFirebase && mainDocRef) {
+    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const snap = await getDoc(mainDocRef);
+    if (snap.exists()) {
+      exportData = snap.data();
+      history = exportData.history || [];
+    }
+  } else {
+    exportData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"history":[]}');
+    history = exportData.history || [];
+  }
+  
+  // CSV Inhalt zusammenbauen
+  let csvRows = [];
+  
+  // 1. Header: Export-Datum
+  csvRows.push(['"JUII Bierdeckel - Datenbank Export"']);
+  csvRows.push(['"Export Datum"', new Date().toLocaleString('de-DE')]);
+  csvRows.push([]);
+  
+  // 2. Aktuelle Bierstände
+  csvRows.push(['"AKTUELLE BIERSTÄNDE"']);
+  csvRows.push(['"Name"', '"Anzahl Biere"', '"Betrag (€)"']);
+  for (let name of names) {
+    const count = exportData[name] || 0;
+    const total = count * BEER_PRICE;
+    csvRows.push([`"${name}"`, count, total.toFixed(2)]);
+  }
+  
+  csvRows.push([]);
+  
+  // 3. Verlauf/Historie
+  csvRows.push(['"VERLAUF / HISTORY"']);
+  csvRows.push(['"Aktion"', '"Datum/Uhrzeit"']);
+  for (let entry of history) {
+    const action = entry.name || "Unbekannt";
+    const time = entry.time ? new Date(entry.time).toLocaleString('de-DE') : "unbekannt";
+    csvRows.push([`"${action}"`, `"${time}"`]);
+  }
+  
+  // 4. Zusammenfassung
+  csvRows.push([]);
+  const totalBeers = Object.values(exportData).filter(v => typeof v === 'number').reduce((a,b) => a + b, 0);
+  const totalAmount = totalBeers * BEER_PRICE;
+  csvRows.push(['"ZUSAMMENFASSUNG"']);
+  csvRows.push(['"Gesamtanzahl Biere (offen)"', totalBeers]);
+  csvRows.push(['"Gesamtbetrag offen (€)"', totalAmount.toFixed(2)]);
+  csvRows.push(['"Anzahl Verlaufseinträge"', history.length]);
+  
+  // CSV als Datei herunterladen
+  const csvContent = csvRows.map(row => row.join(';')).join('\n');
+  const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.setAttribute('download', `juii_bierdeckel_export_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  
+  alert("✅ CSV Export wurde gestartet!");
+}
 
 function showConfirmPopup(name, count) {
   if (count === 0) { alert("Keine offenen Biere zum Bezahlen."); return; }
@@ -397,12 +470,11 @@ function updateMonthStats(historyArray) {
   document.getElementById('twoMonthsAgoCount').innerText = counts[2];
 }
 
-// HAUPTFUNKTION - rendert die Tabelle basierend auf dem aktuellen Admin-Status
 function renderMainTable(data) {
   const tbody = document.getElementById('tableBody');
   if (!tbody) return;
   tbody.innerHTML = '';
-  const adminLoggedIn = isAdmin(); // JEDES MAL NEU PRÜFEN!
+  const adminLoggedIn = isAdmin();
   
   for (let name of names) {
     const count = data[name] || 0;
@@ -411,7 +483,6 @@ function renderMainTable(data) {
     let buttonsHtml = `<button class="add" data-name="${escapeHtml(name)}">+1 Bier</button>
                        <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">bezahlt</button>`;
     
-    // Admin-Button NUR wenn adminLoggedIn TRUE ist
     if (adminLoggedIn) {
       buttonsHtml += `<button class="remove" data-name-remove="${escapeHtml(name)}">-1 Bier</button>`;
     }
@@ -420,7 +491,7 @@ function renderMainTable(data) {
       <td style="font-weight:500;">${escapeHtml(name)}</td>
       <td class="beer-icons">${icons}<br><span class="beer-cost">${formatEuro(total)}</span></td>
       <td><div class="action-buttons">${buttonsHtml}</div></td>
-    </tr>`;
+    </table>`;
   }
   
   document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
@@ -632,11 +703,5 @@ async function start() {
   document.getElementById('logoutBtn').onclick = logoutAdmin;
   document.getElementById('resetAllBtn').onclick = async () => { if (useFirebase) await resetFirebase(); else await resetLocal(); };
   document.getElementById('clearHistoryBtn').onclick = async () => { if (useFirebase) await clearHistoryFirebase(); else await clearHistoryLocal(); };
-  document.getElementById('confirmYesBtn').onclick = async () => { if (pendingPayPerson) await resetBeerCountForPerson(pendingPayPerson); closeConfirmPopup(); };
-  document.getElementById('confirmNoBtn').onclick = () => closeConfirmPopup();
-}
-
-start();
-</script>
-</body>
-</html>
+  document.getElementById('exportCsvBtn').onclick = async () => { await exportToCSV(); };
+  document.getElementById('confirmYesBtn').onclick = async () => { if
