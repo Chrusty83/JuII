@@ -64,10 +64,13 @@
     button:active { transform: scale(0.96); }
     button:hover { opacity: 0.85; }
     .add { background: #0a84ff; color: white; }
+    .pay { background: #2e7d64; color: white; }
     .admin-login-btn { background: #5a5fcf; color: white; }
     .reset-btn { background: #c44536; color: white; }
     .clear-btn { background: #e68a2e; color: white; }
     .logout-btn { background: #666; color: white; }
+    .popup-confirm { background: #2e7d64; color: white; }
+    .popup-cancel { background: #6c757d; color: white; }
     .qr-grid canvas {
       background: white;
       border-radius: 12px;
@@ -147,6 +150,36 @@
       margin-left: 10px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    
+    /* Bestätigungs-Popup */
+    .confirm-popup {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(5px);
+      align-items: center;
+      justify-content: center;
+      z-index: 1001;
+    }
+    .confirm-popup-box {
+      background: #1f1f2c;
+      padding: 28px 24px;
+      border-radius: 48px;
+      min-width: 300px;
+      text-align: center;
+      border: 1px solid #ffd966;
+    }
+    .confirm-popup-box p {
+      font-size: 1.2rem;
+      margin-bottom: 20px;
+    }
+    .confirm-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+    }
   </style>
 </head>
 <body>
@@ -157,7 +190,7 @@
   <h2>📋 Strichliste</h2>
   <div style="overflow-x: auto;">
     <table>
-      <thead><tr><th>Name</th><th>🍺 Anzahl</th><th>Aktion</th></tr></thead>
+      <thead><tr><th>Name</th><th>🍺 Anzahl</th><th>Aktionen</th></tr></thead>
       <tbody id="tableBody">
         <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></tr>
       </tbody>
@@ -213,6 +246,17 @@
   </div>
 </div>
 
+<!-- Bestätigungs-Popup für Zahlung -->
+<div id="confirmPopup" class="confirm-popup">
+  <div class="confirm-popup-box">
+    <p>🍺 <strong id="confirmName"></strong>, hast du sicher bezahlt?</p>
+    <div class="confirm-buttons">
+      <button id="confirmYesBtn" class="popup-confirm">✅ Ja, bezahlt</button>
+      <button id="confirmNoBtn" class="popup-cancel">❌ Nein, abbrechen</button>
+    </div>
+  </div>
+</div>
+
 <footer>
   <span id="connectionStatus"></span>
 </footer>
@@ -236,6 +280,7 @@ let useFirebase = false;
 let mainDocRef = null;
 let unsubscribe = null;
 let beerChart = null;
+let pendingPayPerson = null;
 
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 const STORAGE_KEY = "juii_bierdeckel_data";
@@ -246,6 +291,43 @@ function escapeHtml(str) { return str.replace(/[&<>]/g, m => m === '&' ? '&amp;'
 function updateConnectionStatus(msg) { 
   const statusDiv = document.getElementById('connectionStatus');
   if (statusDiv) statusDiv.innerHTML = msg;
+}
+
+// ==================== BESTÄTIGUNGS-POPUP ====================
+function showConfirmPopup(name) {
+  pendingPayPerson = name;
+  document.getElementById('confirmName').innerText = name;
+  document.getElementById('confirmPopup').style.display = 'flex';
+}
+
+function closeConfirmPopup() {
+  document.getElementById('confirmPopup').style.display = 'none';
+  pendingPayPerson = null;
+}
+
+// ==================== ZAHLEN (BIERSTAND LÖSCHEN) ====================
+async function resetBeerCountForPerson(person) {
+  if (!person) return;
+  
+  if (useFirebase && mainDocRef) {
+    const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const snap = await getDoc(mainDocRef);
+    if (snap.exists()) {
+      let current = snap.data();
+      current[person] = 0;
+      // Optional: Eintrag im Verlauf, dass bezahlt wurde
+      current.history = [...(current.history || []), { name: person + " (bezahlt)", time: new Date().toISOString() }];
+      await setDoc(mainDocRef, current);
+    }
+  } else {
+    let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"history":[]}');
+    names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
+    data[person] = 0;
+    if (!data.history) data.history = [];
+    data.history.push({ name: person + " (bezahlt)", time: new Date().toISOString() });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    renderLocalData();
+  }
 }
 
 // ==================== MONATSÜBERSICHT ====================
@@ -276,7 +358,7 @@ function updateMonthStats(historyArray) {
   
   if (historyArray && Array.isArray(historyArray)) {
     historyArray.forEach(entry => {
-      if (entry?.time) {
+      if (entry?.time && !entry.name?.includes("bezahlt")) {
         const date = new Date(entry.time);
         if (!isNaN(date.getTime())) {
           const entryYear = date.getFullYear();
@@ -309,17 +391,21 @@ function renderMainTable(data) {
       <tr>
         <td style="font-weight:500;">${escapeHtml(name)}</td>
         <td class="beer-icons">${icons}<br><span class="beer-count">${count} x Bier</span></td>
-        <td><button class="add" data-name="${escapeHtml(name)}">➕ +1 Bier</button></td>
+        <td>
+          <button class="add" data-name="${escapeHtml(name)}">➕ +1 Bier</button>
+          <button class="pay" data-name-pay="${escapeHtml(name)}">💰 Ich habe bezahlt</button>
+        </td>
       </tr>
     `;
   }
   document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
+  document.querySelectorAll('.pay').forEach(btn => { btn.onclick = () => showConfirmPopup(btn.dataset.namePay); });
 }
 
 function renderMonthlyChart(historyArray) {
   const months = new Map();
   (historyArray || []).forEach(e => {
-    if (e?.time) { 
+    if (e?.time && !e.name?.includes("bezahlt")) { 
       const d = new Date(e.time); 
       if (!isNaN(d)) {
         const key = `${d.getMonth()+1}/${d.getFullYear()}`;
@@ -349,7 +435,9 @@ function renderMonthlyChart(historyArray) {
     } 
   });
   
-  updateMonthStats(historyArray);
+  // Nur echte Bier-Einträge für Monatsstatistik (ohne "bezahlt")
+  const realHistory = (historyArray || []).filter(e => e && e.name && !e.name.includes("bezahlt"));
+  updateMonthStats(realHistory);
 }
 
 function updateHistoryUI(historyArray) {
@@ -357,7 +445,10 @@ function updateHistoryUI(historyArray) {
   if (!ul) return;
   ul.innerHTML = '';
   if (!historyArray?.length) { ul.innerHTML = '<li>📭 Keine Einträge</li>'; return; }
-  [...historyArray].reverse().forEach(e => { ul.innerHTML += `<li>🍺 ${escapeHtml(e.name)} – ${new Date(e.time).toLocaleString('de-DE')}</li>`; });
+  [...historyArray].reverse().forEach(e => { 
+    const displayName = e.name || "Unbekannt";
+    ul.innerHTML += `<li>🍺 ${escapeHtml(displayName)} – ${new Date(e.time).toLocaleString('de-DE')}</li>`; 
+  });
 }
 
 function renderQRTable() {
@@ -601,6 +692,17 @@ async function start() {
   document.getElementById('clearHistoryBtn').onclick = async () => { 
     if (useFirebase) await clearHistoryFirebase(); 
     else await clearHistoryLocal(); 
+  };
+  
+  // Bestätigungs-Popup Buttons
+  document.getElementById('confirmYesBtn').onclick = async () => {
+    if (pendingPayPerson) {
+      await resetBeerCountForPerson(pendingPayPerson);
+    }
+    closeConfirmPopup();
+  };
+  document.getElementById('confirmNoBtn').onclick = () => {
+    closeConfirmPopup();
   };
 }
 
