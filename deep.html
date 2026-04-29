@@ -82,13 +82,6 @@
       align-items: center;
     }
     
-    .qr-grid canvas {
-      background: white;
-      border-radius: 12px;
-      padding: 6px;
-      width: 100px !important;
-      height: 100px !important;
-    }
     #chartContainer {
       background: #1a1a28;
       border-radius: 28px;
@@ -243,7 +236,6 @@
 <h1>🍺 JUII BIERDECKEL 🍺</h1>
 
 <div class="glass-card">
-  <h2>📋 Strichliste</h2>
   <div id="totalBeerDisplay" class="total-beer-badge">🍺 Gesamt: 0 Biere</div>
   <div style="overflow-x: auto;">
     <table>
@@ -266,12 +258,6 @@
     <div class="stat-card"><div class="stat-month" id="lastMonthLabel">-</div><div class="stat-count" id="lastMonthCount">0</div><div class="stat-label">🍺 Biere</div></div>
     <div class="stat-card"><div class="stat-month" id="twoMonthsAgoLabel">-</div><div class="stat-count" id="twoMonthsAgoCount">0</div><div class="stat-label">🍺 Biere</div></div>
   </div>
-</div>
-
-<div class="glass-card qr-grid">
-  <h2>📱 QR-Codes</h2>
-  <p style="font-size:14px;">Scan zum Bier hinzufügen</p>
-  <div style="overflow-x: auto;"></table><tbody id="qrBody"></tbody></table></div>
 </div>
 
 <div class="glass-card">
@@ -325,7 +311,6 @@ let pendingPayAmount = 0;
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 const STORAGE_KEY = "juii_bierdeckel_data";
 
-// Gesamtanzahl aller Biere berechnen
 function getTotalBeerCount(data) {
   if (!data) return 0;
   let total = 0;
@@ -335,7 +320,6 @@ function getTotalBeerCount(data) {
   return total;
 }
 
-// Gesamtanzeige aktualisieren
 function updateTotalDisplay(data) {
   const totalDiv = document.getElementById('totalBeerDisplay');
   if (totalDiv) {
@@ -477,7 +461,6 @@ function renderMainTable(data) {
   if (!tbody) return;
   tbody.innerHTML = '';
   
-  // Gesamtanzeige aktualisieren
   updateTotalDisplay(data);
   
   for (let name of names) {
@@ -536,15 +519,6 @@ function updateHistoryUI(historyArray) {
   [...historyArray].reverse().forEach(e => { 
     ul.innerHTML += `<li>🍺 ${escapeHtml(e.name)} – ${new Date(e.time).toLocaleString('de-DE')}</li>`; 
   });
-}
-
-function renderQRTable() {
-  const qrBody = document.getElementById('qrBody');
-  if (!qrBody) return;
-  qrBody.innerHTML = '';
-  const baseUrl = window.location.origin + window.location.pathname;
-  names.forEach(name => { const id = `qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`; qrBody.innerHTML += `<tr><td style="font-weight:bold;">${escapeHtml(name)}</td><td><canvas id="${id}" width="120" height="120"></canvas></td></tr>`; });
-  setTimeout(() => { names.forEach(name => { const canvas = document.getElementById(`qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`); if (canvas) QRCode.toCanvas(canvas, `${baseUrl}?add=${encodeURIComponent(name)}`, { width: 110, margin: 1 }); }); }, 200);
 }
 
 function loadLocalData() { const stored = localStorage.getItem(STORAGE_KEY); return stored ? JSON.parse(stored) : null; }
@@ -710,7 +684,6 @@ function handleUrlParam() {
 
 async function start() {
   checkAdminSession();
-  renderQRTable();
   await initFirebase();
   handleUrlParam();
   document.getElementById('loginBtn').onclick = loginAdmin;
@@ -724,4 +697,4 @@ async function start() {
 start();
 </script>
 </body>
-</html
+</html>
