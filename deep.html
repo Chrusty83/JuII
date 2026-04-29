@@ -284,19 +284,13 @@
   let beerChart = null;
   let currentPayPerson = null;
   let currentPayAmount = 0;
-  let popupElement = null;
   
   const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
   const BEER_PRICE = 2.00;
   const STORAGE_KEY = "juii_bierdeckel_data";
   
   // ==================== HILFSFUNKTIONEN ====================
-  function escapeHtml(str) { 
-    if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) { 
-      return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'; 
-    }); 
-  }
+  function escapeHtml(str) { return str.replace(/[&<>]/g, function(m) { return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'; }); }
   
   function formatEuro(amount) {
     if (amount === Math.floor(amount)) {
@@ -313,20 +307,15 @@
     }
   }
   
-  // ==================== POPUP SCHLIESSEN (DIREKT & ZUVERLÄSSIG) ====================
-  function closePopup() {
-    if (popupElement) {
-      popupElement.style.display = 'none';
-    }
-    currentPayPerson = null;
-    currentPayAmount = 0;
-  }
-  
   // ==================== PAYPAL LINK GENERIEREN ====================
   function openPaypal(amount, personName) {
+    // PayPal Standard Payment Link
+    // Betrag auf 2 Dezimalstellen formatieren (PayPal erwartet Punkt als Dezimaltrenner)
     const amountFormatted = amount.toFixed(2);
     const description = `Bierdeckel-Zahlung von ${personName}`;
     const paypalUrl = `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(PAYPAL_EMAIL)}&amount=${amountFormatted}&currency_code=EUR&item_name=${encodeURIComponent(description)}&no_shipping=1&no_note=1`;
+    
+    // Öffnet PayPal in einem neuen Tab
     window.open(paypalUrl, '_blank');
   }
   
@@ -347,7 +336,7 @@
       { year: currentMonth <= 2 ? currentYear - 1 : currentYear, month: currentMonth === 1 ? 11 : (currentMonth === 2 ? 12 : currentMonth - 2), elementId: "twoMonthsAgoCount", labelId: "twoMonthsAgoLabel" }
     ];
     
-    targets.forEach((target) => {
+    targets.forEach((target, idx) => {
       const labelElem = document.getElementById(target.labelId);
       if (labelElem) {
         labelElem.innerText = getMonthName(target.year, target.month);
@@ -358,11 +347,12 @@
     
     if (historyArray && Array.isArray(historyArray)) {
       historyArray.forEach(entry => {
-        if (entry && entry.time) {
+        if (entry?.time) {
           const date = new Date(entry.time);
           if (!isNaN(date.getTime())) {
             const entryYear = date.getFullYear();
             const entryMonth = date.getMonth() + 1;
+            
             for (let i = 0; i < targets.length; i++) {
               if (entryYear === targets[i].year && entryMonth === targets[i].month) {
                 counts[i]++;
@@ -384,46 +374,38 @@
     const tbody = document.getElementById('tableBody');
     if (!tbody) return;
     tbody.innerHTML = '';
-    if (!data) { 
-      tbody.innerHTML = '<tr><td colspan="3">📭 Keine Daten</td></tr>'; 
-      return; 
-    }
+    if (!data) { tbody.innerHTML = '<table><td colspan="3">📭 Keine Daten</td></tr>'; return; }
     for (let name of names) {
       const count = data[name] || 0;
       const total = count * BEER_PRICE;
       const formattedTotal = formatEuro(total);
       let icons = count > 0 ? "🍺".repeat(Math.min(count, 20)) + (count > 20 ? ` +${count-20}` : "") : "—";
-      const row = tbody.insertRow();
-      row.innerHTML = `
-        <td style="font-weight:500;">${escapeHtml(name)}</td>
-        <td class="beer-icons">${icons}<br><span class="beer-price">${formattedTotal}</span></td>
-        <td>
-          <button class="add" data-name="${escapeHtml(name)}">➕ +1</button>
-          <button class="pay" data-name-pay="${escapeHtml(name)}">💶 Zahlen</button>
-        </td>
+      tbody.innerHTML += `
+        <tr>
+          <td style="font-weight:500;">${escapeHtml(name)}</td>
+          <td class="beer-icons">${icons}<br><span class="beer-price">${formattedTotal}</span></td>
+          <td>
+            <button class="add" data-name="${escapeHtml(name)}">➕ +1</button>
+            <button class="pay" data-name-pay="${escapeHtml(name)}">💶 Zahlen</button>
+          </td>
+        </tr>
       `;
     }
-    document.querySelectorAll('.add').forEach(btn => { 
-      btn.onclick = () => addBeer(btn.dataset.name); 
-    });
-    document.querySelectorAll('.pay').forEach(btn => { 
-      btn.onclick = () => openPayPopup(btn.dataset.namePay); 
-    });
+    document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
+    document.querySelectorAll('.pay').forEach(btn => { btn.onclick = () => openPayPopup(btn.dataset.namePay); });
   }
   
   function renderMonthlyChart(historyArray) {
     const months = new Map();
-    if (historyArray && Array.isArray(historyArray)) {
-      historyArray.forEach(e => {
-        if (e && e.time) { 
-          const d = new Date(e.time); 
-          if (!isNaN(d.getTime())) {
-            const key = `${d.getMonth()+1}/${d.getFullYear()}`;
-            months.set(key, (months.get(key) || 0) + 1);
-          }
+    (historyArray || []).forEach(e => {
+      if (e?.time) { 
+        const d = new Date(e.time); 
+        if (!isNaN(d)) {
+          const key = `${d.getMonth()+1}/${d.getFullYear()}`;
+          months.set(key, (months.get(key) || 0) + 1);
         }
-      });
-    }
+      }
+    });
     
     const sortedLabels = Array.from(months.keys()).sort((a,b) => {
       const [mA, yA] = a.split('/');
@@ -441,7 +423,6 @@
       }, 
       options: { 
         responsive: true, 
-        maintainAspectRatio: true,
         plugins: { legend: { labels: { color: '#fff' } } }, 
         scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966' } } } 
       } 
@@ -454,15 +435,8 @@
     const ul = document.getElementById('history');
     if (!ul) return;
     ul.innerHTML = '';
-    if (!historyArray || historyArray.length === 0) { 
-      ul.innerHTML = '<li>📭 Keine Einträge</li>'; 
-      return; 
-    }
-    [...historyArray].reverse().forEach(e => { 
-      if (e && e.name && e.time) {
-        ul.innerHTML += `<li>🍺 ${escapeHtml(e.name)} – ${new Date(e.time).toLocaleString('de-DE')}</li>`; 
-      }
-    });
+    if (!historyArray?.length) { ul.innerHTML = '<li>📭 Keine Einträge</li>'; return; }
+    [...historyArray].reverse().forEach(e => { ul.innerHTML += `<li>🍺 ${e.name} – ${new Date(e.time).toLocaleString('de-DE')}</li>`; });
   }
   
   function renderQRTable() {
@@ -477,11 +451,9 @@
     setTimeout(() => {
       names.forEach(name => {
         const canvas = document.getElementById(`qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`);
-        if (canvas) {
-          QRCode.toCanvas(canvas, `${baseUrl}?add=${encodeURIComponent(name)}`, { width: 110, margin: 1 });
-        }
+        if (canvas) QRCode.toCanvas(canvas, `${baseUrl}?add=${encodeURIComponent(name)}`, { width: 110 });
       });
-    }, 150);
+    }, 100);
   }
   
   // ==================== LOCALSTORAGE ====================
@@ -494,12 +466,7 @@
   
   function renderLocalData() {
     let data = loadLocalData();
-    if (!data) { 
-      const empty = {}; 
-      names.forEach(n => empty[n] = 0); 
-      data = { ...empty, history: [] }; 
-      saveLocalData(data); 
-    }
+    if (!data) { const empty = {}; names.forEach(n => empty[n] = 0); data = { ...empty, history: [] }; saveLocalData(data); }
     names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
     if (!data.history) data.history = [];
     renderMainTable(data);
@@ -519,96 +486,72 @@
   async function payLocal(person) {
     if (!person) return;
     let data = loadLocalData();
-    if (data) { 
-      data[person] = 0; 
-      saveLocalData(data); 
-      renderLocalData(); 
-    }
+    if (data) { data[person] = 0; saveLocalData(data); renderLocalData(); }
   }
   
   async function resetLocal() {
     if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
     let data = loadLocalData();
-    if (data) { 
-      names.forEach(n => data[n] = 0); 
-      saveLocalData(data); 
-      renderLocalData(); 
-      alert("✅ Alle Biere zurückgesetzt"); 
-      return true; 
-    }
+    if (data) { names.forEach(n => data[n] = 0); saveLocalData(data); renderLocalData(); alert("✅ Alle Biere zurückgesetzt"); return true; }
     return false;
   }
   
   async function clearHistoryLocal() {
     if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
     let data = loadLocalData();
-    if (data) { 
-      data.history = []; 
-      saveLocalData(data); 
-      renderLocalData(); 
-      alert("✅ Verlauf gelöscht"); 
-      return true; 
-    }
+    if (data) { data.history = []; saveLocalData(data); renderLocalData(); alert("✅ Verlauf gelöscht"); return true; }
     return false;
   }
   
   // ==================== FIREBASE ====================
   async function addBeerFirebase(name) {
     if (!mainDocRef) return;
-    try {
-      const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-      const snap = await getDoc(mainDocRef);
-      let current = snap.exists() ? snap.data() : {};
-      current[name] = (current[name] || 0) + 1;
-      current.history = [...(current.history || []), { name, time: new Date().toISOString() }];
-      await setDoc(mainDocRef, current);
-    } catch(e) { console.error(e); }
+    const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const snap = await getDoc(mainDocRef);
+    let current = snap.exists() ? snap.data() : {};
+    current[name] = (current[name] || 0) + 1;
+    current.history = [...(current.history || []), { name, time: new Date().toISOString() }];
+    await setDoc(mainDocRef, current);
   }
   
   async function payFirebase(person) {
     if (!person || !mainDocRef) return;
-    try {
-      const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-      const snap = await getDoc(mainDocRef);
-      if (snap.exists()) {
-        let current = snap.data();
-        current[person] = 0;
-        await setDoc(mainDocRef, current);
-      }
-    } catch(e) { console.error(e); }
+    const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const snap = await getDoc(mainDocRef);
+    if (snap.exists()) {
+      let current = snap.data();
+      current[person] = 0;
+      await setDoc(mainDocRef, current);
+    }
   }
   
   async function resetFirebase() {
     if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
     if (!mainDocRef) return false;
-    try {
-      const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-      const snap = await getDoc(mainDocRef);
-      if (snap.exists()) {
-        let current = snap.data();
-        names.forEach(n => current[n] = 0);
-        await setDoc(mainDocRef, current);
-        alert("✅ Alle Biere zurückgesetzt");
-        return true;
-      }
-    } catch(e) { console.error(e); }
+    const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const snap = await getDoc(mainDocRef);
+    if (snap.exists()) {
+      let current = snap.data();
+      names.forEach(n => current[n] = 0);
+      await setDoc(mainDocRef, current);
+      alert("✅ Alle Biere zurückgesetzt");
+      return true;
+    }
     return false;
   }
   
   async function clearHistoryFirebase() {
     if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
     if (!mainDocRef) return false;
-    try {
-      const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-      const snap = await getDoc(mainDocRef);
-      if (snap.exists()) {
-        let current = snap.data();
-        current.history = [];
-        await setDoc(mainDocRef, current);
-        alert("✅ Verlauf gelöscht");
-        return true;
-      }
-    } catch(e) { console.error(e); }
+    const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const snap = await getDoc(mainDocRef);
+    if (snap.exists()) {
+      let current = snap.data();
+      current.history = [];
+      await setDoc(mainDocRef, current);
+      alert("✅ Verlauf gelöscht");
+      return true;
+    }
     return false;
   }
   
@@ -697,21 +640,24 @@
     document.getElementById('popup').style.display = 'flex';
   }
   
-  // WICHTIG: Die closePopup Funktion wird direkt nach der Aktion aufgerufen
-  function onConfirmPayment() {
-    if (currentPayPerson) {
-      pay(currentPayPerson);
-    }
-    // Popup sofort schließen (unabhängig von der asynchronen pay-Funktion)
+  async function onConfirmPayment() {
+    if (currentPayPerson) await pay(currentPayPerson);
     closePopup();
   }
   
   function onPaypalPayment() {
     if (currentPayPerson && currentPayAmount > 0) {
       openPaypal(currentPayAmount, currentPayPerson);
+      // Popup bleibt offen, damit der Benutzer nach PayPal-Zahlung auch hier auf "Zahlen & löschen" klicken kann
+    } else {
+      alert("Kein offener Betrag vorhanden.");
     }
-    // Popup sofort schließen
-    closePopup();
+  }
+  
+  function closePopup() {
+    document.getElementById('popup').style.display = 'none';
+    currentPayPerson = null;
+    currentPayAmount = 0;
   }
   
   // ==================== ADMIN LOGIN ====================
@@ -755,11 +701,8 @@
   }
   
   async function start() {
-    // Popup-Element einmalig speichern
-    popupElement = document.getElementById('popup');
-    
     checkAdminSession();
-    renderQRTable(); // QR Codes beim Start rendern
+    renderQRTable();
     await initFirebase();
     handleUrlParam();
     
@@ -782,14 +725,12 @@
     if (resetBtn) resetBtn.addEventListener('click', async () => { 
       if (useFirebase) await resetFirebase(); 
       else await resetLocal(); 
-      renderQRTable(); // QR neu rendern
     });
     
     const clearBtn = document.getElementById('clearHistoryBtn');
     if (clearBtn) clearBtn.addEventListener('click', async () => { 
       if (useFirebase) await clearHistoryFirebase(); 
       else await clearHistoryLocal(); 
-      renderQRTable();
     });
   }
   
