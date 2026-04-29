@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>JUII Bierdeckel – Strichliste mit QR & Chart</title>
+  <title>JUII Bierdeckel – Strichliste</title>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   
@@ -122,7 +122,6 @@
     }
     .status-badge.online { background: #4caf50; color: #000; }
     .status-badge.offline { background: #f44336; color: #fff; }
-    .status-badge.error { background: #f44336; color: #fff; }
     .status-badge.local { background: #2196f3; color: #fff; }
     .loading-spinner {
       display: inline-block;
@@ -134,18 +133,8 @@
       animation: spin 0.8s linear infinite;
       margin-left: 10px;
     }
-    .debug-info {
-      background: #1a1a2a;
-      border-radius: 12px;
-      padding: 12px;
-      margin-top: 10px;
-      font-family: monospace;
-      font-size: 11px;
-      text-align: left;
-      word-break: break-all;
-    }
-    footer { font-size: 12px; margin-top: 30px; opacity: 0.6; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    footer { font-size: 12px; margin-top: 30px; opacity: 0.6; }
   </style>
 </head>
 <body>
@@ -159,7 +148,7 @@
     <table>
       <thead><tr><th>Name</th><th>🍺 Anzahl / Betrag</th><th>Aktionen</th></tr></thead>
       <tbody id="tableBody">
-        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten aus Firebase... <span class="loading-spinner"></span></td></tr>
+        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></tr>
       </tbody>
     </table>
   </div>
@@ -181,9 +170,10 @@
 
 <div class="glass-card">
   <h2>🔐 Admin Bereich</h2>
+  <p style="font-size:13px; margin:0 0 10px;">Standard Passwort: <strong>admin123</strong></p>
   <div>
-    <input type="password" id="adminPassword" placeholder="Admin Passwort">
-    <button onclick="loginWithHash()" class="add">🔓 Login</button>
+    <input type="password" id="adminPassword" placeholder="Admin Passwort" autocomplete="off">
+    <button onclick="loginWithHash()" class="add" style="background:#5a5fcf;">🔓 Login</button>
   </div>
   <div id="adminActions" style="display:none; margin-top: 20px;">
     <button id="resetAllBtn" style="background:#c44536;">🧹 Alle Biere zurücksetzen</button>
@@ -192,7 +182,6 @@
     <h3>📜 Letzte Aktionen</h3>
     <div class="history-list"><ul id="history"></ul></div>
   </div>
-  <div id="debugInfo" class="debug-info"></div>
 </div>
 
 <div id="popup">
@@ -204,6 +193,8 @@
     <button class="cancel" id="closePopupBtn">❌ Abbrechen</button>
   </div>
 </div>
+
+<footer>🍻 Admin-Passwort: admin123</footer>
 
 <script>
   // ==================== FIREBASE KONFIGURATION ====================
@@ -219,14 +210,9 @@
   
   // ==================== ADMIN PASSWORT ====================
   // Passwort: admin123
-  // SHA-256 Hash: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
-  const ADMIN_PASSWORD_HASH = "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b";
-  
-  // Falls Sie ein anderes Passwort möchten:
-  // 1. Besuchen Sie: https://emn178.github.io/online-tools/sha256.html
-  // 2. Geben Sie Ihr Wunschpasswort ein (z.B. "MeinSicheresPasswort")
-  // 3. Kopieren Sie den generierten Hash (64 Zeichen)
-  // 4. Ersetzen Sie den ADMIN_PASSWORD_HASH oben
+  // Korrekter SHA-256 Hash für "admin123":
+  // "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9"
+  const ADMIN_PASSWORD_HASH = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9";
   
   let isAdminLoggedIn = false;
   let useFirebase = false;
@@ -247,14 +233,6 @@
       return `${Math.floor(amount)} €`;
     } else {
       return `${amount.toFixed(2)} €`;
-    }
-  }
-  
-  function updateDebugInfo(message, isError = false) {
-    const debugDiv = document.getElementById('debugInfo');
-    if (debugDiv) {
-      const time = new Date().toLocaleTimeString();
-      debugDiv.innerHTML = `<strong>📡 Debug (${time}):</strong><br>${message}` + (isError ? '<br><span style="color:#ff8888;">⚠️ Bitte prüfen</span>' : '');
     }
   }
   
@@ -353,7 +331,7 @@
     renderMainTable(data);
     updateHistoryUI(data.history);
     renderMonthlyChart(data.history);
-    updateSyncStatus('local', '💾 Lokaler Modus – Daten im Browser gespeichert');
+    updateSyncStatus('local', '💾 Lokaler Modus');
   }
   
   async function addBeerLocal(name) {
@@ -438,13 +416,6 @@
   async function initFirebase() {
     updateSyncStatus('offline', '📡 Verbinde mit Firebase...');
     
-    if (!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey.length < 20) {
-      updateSyncStatus('offline', '⚠️ Firebase nicht konfiguriert – Verwende localStorage');
-      renderLocalData();
-      useFirebase = false;
-      return false;
-    }
-    
     try {
       const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js");
       const { getFirestore, doc, getDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
@@ -470,7 +441,7 @@
         renderMonthlyChart(data.history || []);
       }
       
-      updateSyncStatus('online', '✅ Firebase verbunden – Live-Synchronisation');
+      updateSyncStatus('online', '✅ Firebase verbunden');
       useFirebase = true;
       
       unsubscribe = onSnapshot(mainDocRef, (snapshot) => {
@@ -486,8 +457,8 @@
       
       return true;
     } catch (err) {
-      console.error("Firebase Init Fehler:", err);
-      updateSyncStatus('error', '⚠️ Firebase Fehler – Verwende localStorage');
+      console.error("Firebase Fehler:", err);
+      updateSyncStatus('offline', '⚠️ Firebase Fehler – Lokaler Modus');
       renderLocalData();
       useFirebase = false;
       return false;
@@ -544,21 +515,14 @@
     if (!pwd) { alert("Bitte Passwort eingeben"); return; }
     const hash = await hashPassword(pwd);
     
-    // Debug-Ausgabe in Konsole
-    console.log("Eingegebenes Passwort:", pwd);
-    console.log("Generierter Hash:", hash);
-    console.log("Erwarteter Hash:", ADMIN_PASSWORD_HASH);
-    
     if (hash === ADMIN_PASSWORD_HASH) {
       isAdminLoggedIn = true;
       sessionStorage.setItem('adminAuth', 'true');
       document.getElementById('adminActions').style.display = 'block';
       document.getElementById('adminPassword').value = '';
       alert("✅ Login erfolgreich!");
-      updateDebugInfo(`Admin-Login erfolgreich um ${new Date().toLocaleTimeString()}`);
     } else { 
       alert("❌ Falsches Passwort!\n\nVerwenden Sie: admin123");
-      updateDebugInfo(`❌ Login fehlgeschlagen. Falsches Passwort.`, true);
     }
   };
   
