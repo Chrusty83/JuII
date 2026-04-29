@@ -595,7 +595,7 @@ async function addBeerFirebase(name) {
   current.history = [...(current.history || []), { name, time: new Date().toISOString() }];
   await setDoc(mainDocRef, current);
   refreshUI();
-  showToast(`🍺 ${name}: +1 Bier (neuer Stand: ${current[name]} Bier)`);
+  showToast(`🍺 ${name} +1 Bier (neuer Stand: ${current[name]} Bier)`);
 }
 
 async function resetFirebase() {
