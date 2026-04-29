@@ -235,7 +235,7 @@
   <h2>📋 Strichliste</h2>
   <div style="overflow-x: auto;">
     <table>
-      <thead><tr><th>Name</th><th>🍺 Anzahl / Kosten</th><th>Aktionen</th></tr></thead>
+      <thead><tr><th>Name</th><th>🍺 Anzahl / Kosten</th><th>Aktionen</th><tr></thead>
       <tbody id="tableBody">
         <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></tr>
       </tbody>
@@ -257,7 +257,7 @@
 <div class="glass-card qr-grid">
   <h2>📱 QR-Codes</h2>
   <p style="font-size:14px;">Scan zum Bier hinzufügen</p>
-  <div style="overflow-x: auto;"><tr><tbody id="qrBody"></tbody></table></div>
+  <div style="overflow-x: auto;"><table><tbody id="qrBody"></tbody></td></div>
 </div>
 
 <div class="glass-card">
@@ -307,11 +307,12 @@ let unsubscribe = null;
 let beerChart = null;
 let pendingPayPerson = null;
 let pendingPayAmount = 0;
+let currentDataCache = {};
 
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 const STORAGE_KEY = "juii_bierdeckel_data";
 
-// Gesamtanzahl der Biere aus einem data Objekt berechnen
+// Gesamtanzahl aller Biere auf der Strichliste berechnen
 function getTotalBeerCount(data) {
   if (!data) return 0;
   let total = 0;
@@ -321,7 +322,6 @@ function getTotalBeerCount(data) {
   return total;
 }
 
-// Toast-Popup
 function showToast(message, isError = false) {
   const toast = document.createElement('div');
   toast.className = 'toast-popup';
@@ -331,9 +331,7 @@ function showToast(message, isError = false) {
   setTimeout(() => {
     toast.style.opacity = '0';
     toast.style.transition = 'opacity 0.3s';
-    setTimeout(() => {
-      if (toast.parentNode) toast.parentNode.removeChild(toast);
-    }, 300);
+    setTimeout(() => toast.remove(), 300);
   }, 2500);
 }
 
@@ -373,6 +371,7 @@ async function resetBeerCountForPerson(person) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     refreshUI();
   }
+  closeConfirmPopup();
 }
 
 async function removeBeerFromPerson(person) {
@@ -389,7 +388,7 @@ async function removeBeerFromPerson(person) {
         current.history = [...(current.history || []), { name: `${person} (1 Bier entfernt)`, time: new Date().toISOString() }];
         await setDoc(mainDocRef, current);
         const newTotal = getTotalBeerCount(current);
-        showToast(`🍺 Ein Bier von ${person} wurde entfernt! (Insgesamt: ${newTotal} Bier)`);
+        showToast(`🍺 Ein Bier von ${person} wurde entfernt! (Insgesamt: ${newTotal} Bier auf der Liste)`);
       } else {
         showToast(`${person} hat keine Biere zum Entfernen.`, true);
       }
@@ -405,7 +404,7 @@ async function removeBeerFromPerson(person) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       refreshUI();
       const newTotal = getTotalBeerCount(data);
-      showToast(`🍺 Ein Bier von ${person} wurde entfernt! (Insgesamt: ${newTotal} Bier)`);
+      showToast(`🍺 Ein Bier von ${person} wurde entfernt! (Insgesamt: ${newTotal} Bier auf der Liste)`);
     } else {
       showToast(`${person} hat keine Biere zum Entfernen.`, true);
     }
@@ -537,6 +536,7 @@ function refreshUI() {
           renderMainTable(renderData);
           updateHistoryUI(data.history || []);
           renderMonthlyChart(data.history || []);
+          currentDataCache = renderData;
         }
       });
     });
@@ -548,6 +548,7 @@ function refreshUI() {
     renderMainTable(data);
     updateHistoryUI(data.history);
     renderMonthlyChart(data.history);
+    currentDataCache = data;
   }
 }
 
@@ -560,6 +561,7 @@ function renderLocalData() {
   updateHistoryUI(data.history);
   renderMonthlyChart(data.history);
   updateConnectionStatus('💾 Lokaler Speicher (Offline-Modus)');
+  currentDataCache = data;
 }
 
 async function addBeerLocal(name) {
@@ -570,7 +572,7 @@ async function addBeerLocal(name) {
   saveLocalData(data);
   refreshUI();
   const newTotal = getTotalBeerCount(data);
-  showToast(`🍺 ${name}: +1 Bier (Insgesamt: ${newTotal} Bier)`);
+  showToast(`🍺 ${name}: +1 Bier (Insgesamt: ${newTotal} Bier auf der Liste)`);
 }
 
 async function resetLocal() {
@@ -597,7 +599,7 @@ async function addBeerFirebase(name) {
   await setDoc(mainDocRef, current);
   refreshUI();
   const newTotal = getTotalBeerCount(current);
-  showToast(`🍺 ${name}: +1 Bier (Insgesamt: ${newTotal} Bier)`);
+  showToast(`🍺 ${name}: +1 Bier (Insgesamt: ${newTotal} Bier auf der Liste)`);
 }
 
 async function resetFirebase() {
@@ -665,7 +667,7 @@ function loginAdmin() {
 function logoutAdmin() {
   isAdminLoggedIn = false;
   sessionStorage.removeItem('adminAuth');
-    document.getElementById('adminActions').style.display = 'none';
+  document.getElementById('adminActions').style.display = 'none';
   refreshUI();
   showToast("👋 Admin-Logout");
 }
