@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Verlauf</title>
+  <title>JUII Verlauf</title>
 
   <style>
     body {
@@ -47,7 +47,7 @@
 
 <body>
 
-<h1>📜 Bier Verlauf</h1>
+<h1>📜 JUII Bier Verlauf</h1>
 
 <table>
   <thead>
@@ -63,15 +63,22 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+/* 🔴 DEINE FIREBASE CONFIG */
 const firebaseConfig = {
-  // 🔴 Deine Firebase Config
+  apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
+  authDomain: "juii-strichliste.firebaseapp.com",
+  projectId: "juii-strichliste",
+  storageBucket: "juii-strichliste.firebasestorage.app",
+  messagingSenderId: "8081599971",
+  appId: "1:8081599971:web:6cc277281b040d995304d6",
+  measurementId: "G-2NNFYKSX3L"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const ref = doc(db, "strichliste", "main");
 
-/* DATUM FORMAT */
+/* 🕒 DATUM FORMAT */
 function formatDate(iso){
   const d = new Date(iso);
 
@@ -80,11 +87,12 @@ function formatDate(iso){
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
+    second: "2-digit"
   });
 }
 
-/* LIVE LISTEN */
+/* 🔄 LIVE VERLAUF */
 onSnapshot(ref, snap=>{
   const data = snap.exists() ? snap.data() : { history: [] };
 
@@ -93,16 +101,24 @@ onSnapshot(ref, snap=>{
   const table = document.getElementById("historyTable");
   table.innerHTML = "";
 
-  history.slice().reverse().forEach(entry=>{
-    const tr = document.createElement("tr");
+  if(history.length === 0){
+    table.innerHTML = `<tr><td colspan="2">Keine Einträge vorhanden</td></tr>`;
+    return;
+  }
 
-    tr.innerHTML = `
-      <td>${entry.name}</td>
-      <td class="time">${formatDate(entry.time)}</td>
-    `;
+  history
+    .slice()
+    .reverse()
+    .forEach(entry=>{
+      const tr = document.createElement("tr");
 
-    table.appendChild(tr);
-  });
+      tr.innerHTML = `
+        <td>${entry.name}</td>
+        <td class="time">${formatDate(entry.time)}</td>
+      `;
+
+      table.appendChild(tr);
+    });
 });
 </script>
 
