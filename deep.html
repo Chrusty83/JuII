@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>JUII Bierdeckel – Firebase Strichliste</title>
+  <title>JUII Bierdeckel – Strichliste mit QR & Chart</title>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   
@@ -134,7 +134,6 @@
       animation: spin 0.8s linear infinite;
       margin-left: 10px;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
     .debug-info {
       background: #1a1a2a;
       border-radius: 12px;
@@ -146,6 +145,7 @@
       word-break: break-all;
     }
     footer { font-size: 12px; margin-top: 30px; opacity: 0.6; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -207,7 +207,6 @@
 
 <script>
   // ==================== FIREBASE KONFIGURATION ====================
-  // 🔴🔴🔴 HIER IHRE ECHTEN FIREBASE-DATEN EINTRAGEN! 🔴🔴🔴
   const FIREBASE_CONFIG = {
     apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
   authDomain: "juii-strichliste.firebaseapp.com",
@@ -218,7 +217,6 @@
   measurementId: "G-2NNFYKSX3L"
   };
   
-
   // ==================== ADMIN HASH ====================
   const ADMIN_PASSWORD_HASH = "8b5c3e7a9f1d4b2c6e8a0f3d7b9c1e5a7d3f6b8c0a2e4d6f8a1c3e5b7d9f0a2c";
   
@@ -236,11 +234,25 @@
   // ==================== HILFSFUNKTIONEN ====================
   function escapeHtml(str) { return str.replace(/[&<>]/g, function(m) { return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'; }); }
   
+  /**
+   * Formatiert einen Euro-Betrag:
+   * - Wenn Nachkommastellen .00 sind → nur ganze Zahl anzeigen (z.B. "2 €")
+   * - Wenn Nachkommastellen nicht .00 sind → mit 2 Nachkommastellen anzeigen (z.B. "2.50 €")
+   */
+  function formatEuro(amount) {
+    // Prüfen ob der Betrag eine .00 Nachkommastelle hat
+    if (amount === Math.floor(amount)) {
+      return `${Math.floor(amount)} €`;
+    } else {
+      return `${amount.toFixed(2)} €`;
+    }
+  }
+  
   function updateDebugInfo(message, isError = false) {
     const debugDiv = document.getElementById('debugInfo');
     if (debugDiv) {
       const time = new Date().toLocaleTimeString();
-      debugDiv.innerHTML = `<strong>📡 Debug (${time}):</strong><br>${message}` + (isError ? '<br><span style="color:#ff8888;">⚠️ Bitte Firebase-Konfiguration prüfen!</span>' : '');
+      debugDiv.innerHTML = `<strong>📡 Debug (${time}):</strong><br>${message}` + (isError ? '<br><span style="color:#ff8888;">⚠️ Bitte prüfen</span>' : '');
     }
   }
   
@@ -259,9 +271,19 @@
     if (!data) { tbody.innerHTML = '<tr><td colspan="3">📭 Keine Daten</td></tr>'; return; }
     for (let name of names) {
       const count = data[name] || 0;
-      const total = (count * BEER_PRICE).toFixed(2);
+      const total = count * BEER_PRICE;
+      const formattedTotal = formatEuro(total);
       let icons = count > 0 ? "🍺".repeat(Math.min(count, 20)) + (count > 20 ? ` +${count-20}` : "") : "—";
-      tbody.innerHTML += `<tr><td>${escapeHtml(name)}</td><td class="beer-icons">${icons}<br>💰 ${total} €</td><td><button class="add" data-name="${escapeHtml(name)}">➕ +1</button><button class="pay" data-name-pay="${escapeHtml(name)}">💶 Zahlen</button></td></tr>`;
+      tbody.innerHTML += `
+        <tr>
+          <td style="font-weight:500;">${escapeHtml(name)}</td>
+          <td class="beer-icons">${icons}<br>💰 ${formattedTotal}</td>
+          <td>
+            <button class="add" data-name="${escapeHtml(name)}">➕ +1</button>
+            <button class="pay" data-name-pay="${escapeHtml(name)}">💶 Zahlen</button>
+          </td>
+        </tr>
+      `;
     }
     document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
     document.querySelectorAll('.pay').forEach(btn => { btn.onclick = () => openPayPopup(btn.dataset.namePay); });
@@ -274,7 +296,18 @@
     });
     const ctx = document.getElementById('beerChart').getContext('2d');
     if (beerChart) beerChart.destroy();
-    beerChart = new Chart(ctx, { type: 'bar', data: { labels: Array.from(months.keys()), datasets: [{ label: '🍺 Biere/Monat', data: Array.from(months.values()), backgroundColor: '#f9b43a', borderRadius: 12 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#fff' } } }, scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966' } } } } });
+    beerChart = new Chart(ctx, { 
+      type: 'bar', 
+      data: { 
+        labels: Array.from(months.keys()), 
+        datasets: [{ label: '🍺 Biere/Monat', data: Array.from(months.values()), backgroundColor: '#f9b43a', borderRadius: 12 }] 
+      }, 
+      options: { 
+        responsive: true, 
+        plugins: { legend: { labels: { color: '#fff' } } }, 
+        scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966' } } } 
+      } 
+    });
   }
   
   function updateHistoryUI(historyArray) {
@@ -292,7 +325,7 @@
     const baseUrl = window.location.origin + window.location.pathname;
     names.forEach(name => {
       const id = `qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`;
-      qrBody.innerHTML += `<tr><td>${escapeHtml(name)}</td><td><canvas id="${id}" width="120" height="120"></canvas></td></tr>`;
+      qrBody.innerHTML += `<tr><td style="font-weight:bold;">${escapeHtml(name)}</td><td><canvas id="${id}" width="120" height="120"></canvas></td></tr>`;
     });
     setTimeout(() => {
       names.forEach(name => {
@@ -319,7 +352,7 @@
     updateHistoryUI(data.history);
     renderMonthlyChart(data.history);
     updateSyncStatus('local', '💾 Lokaler Modus – Daten im Browser gespeichert');
-    updateDebugInfo('Verwende localStorage (Firebase nicht erreichbar oder nicht konfiguriert)');
+    updateDebugInfo('Verwende localStorage (Firebase nicht erreichbar)');
   }
   
   async function addBeerLocal(name) {
@@ -339,14 +372,14 @@
   async function resetLocal() {
     if (!isAdminLoggedIn) { alert("Keine Admin-Rechte"); return false; }
     let data = loadLocalData();
-    if (data) { names.forEach(n => data[n] = 0); saveLocalData(data); renderLocalData(); alert("Zurückgesetzt"); return true; }
+    if (data) { names.forEach(n => data[n] = 0); saveLocalData(data); renderLocalData(); alert("✅ Alle Biere zurückgesetzt"); return true; }
     return false;
   }
   
   async function clearHistoryLocal() {
     if (!isAdminLoggedIn) { alert("Keine Admin-Rechte"); return false; }
     let data = loadLocalData();
-    if (data) { data.history = []; saveLocalData(data); renderLocalData(); alert("Verlauf gelöscht"); return true; }
+    if (data) { data.history = []; saveLocalData(data); renderLocalData(); alert("✅ Verlauf gelöscht"); return true; }
     return false;
   }
   
@@ -380,7 +413,7 @@
       let current = snap.data();
       names.forEach(n => current[n] = 0);
       await setDoc(mainDocRef, current);
-      alert("Zurückgesetzt");
+      alert("✅ Alle Biere zurückgesetzt");
       return true;
     }
     return false;
@@ -394,20 +427,19 @@
       let current = snap.data();
       current.history = [];
       await setDoc(mainDocRef, current);
-      alert("Verlauf gelöscht");
+      alert("✅ Verlauf gelöscht");
       return true;
     }
     return false;
   }
   
-  // ==================== FIREBASE INIT MIT DIAGNOSE ====================
+  // ==================== FIREBASE INIT ====================
   async function initFirebase() {
     updateSyncStatus('offline', '📡 Verbinde mit Firebase...');
     updateDebugInfo('Prüfe Firebase-Konfiguration...');
     
-    // Prüfe ob Konfiguration vollständig ist
     if (!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey.length < 20) {
-      updateDebugInfo('❌ Firebase API Key fehlt oder zu kurz! Bitte echte Firebase-Daten eintragen.', true);
+      updateDebugInfo('❌ Firebase API Key fehlt oder zu kurz!', true);
       updateSyncStatus('offline', '⚠️ Firebase nicht konfiguriert – Verwende localStorage');
       renderLocalData();
       useFirebase = false;
@@ -424,7 +456,6 @@
       
       updateDebugInfo(`Verbinde mit: ${FIREBASE_CONFIG.projectId}.firebaseio.com`);
       
-      // Test-Lesevorgang
       const testSnap = await getDoc(mainDocRef);
       updateDebugInfo(`Firebase Verbindung erfolgreich! Dokument existiert: ${testSnap.exists()}`);
       
@@ -442,13 +473,13 @@
         renderMainTable(renderData);
         updateHistoryUI(data.history || []);
         renderMonthlyChart(data.history || []);
-        updateDebugInfo(`✅ Daten geladen! Biere: ${Object.values(renderData).reduce((a,b)=>a+b,0)} Stück`);
+        const totalBeers = Object.values(renderData).reduce((a,b)=>a+b, 0);
+        updateDebugInfo(`✅ Daten geladen! Biere: ${totalBeers} Stück`);
       }
       
       updateSyncStatus('online', '✅ Firebase verbunden – Live-Synchronisation');
       useFirebase = true;
       
-      // Live-Listener
       unsubscribe = onSnapshot(mainDocRef, (snapshot) => {
         if (snapshot.exists()) {
           const snapData = snapshot.data();
@@ -467,7 +498,7 @@
       return true;
     } catch (err) {
       console.error("Firebase Init Fehler:", err);
-      updateDebugInfo(`❌ Firebase Fehler: ${err.message}\n\nMögliche Ursachen:\n1. Falsche Firebase-Konfiguration\n2. Firestore nicht aktiviert\n3. Sicherheitsregeln blockieren`, true);
+      updateDebugInfo(`❌ Firebase Fehler: ${err.message}`, true);
       updateSyncStatus('error', '⚠️ Firebase Fehler – Verwende localStorage');
       renderLocalData();
       useFirebase = false;
@@ -500,8 +531,10 @@
       const data = loadLocalData();
       count = data ? (data[name] || 0) : 0;
     }
+    const total = count * BEER_PRICE;
+    const formattedTotal = formatEuro(total);
     document.getElementById('popupName').innerText = name;
-    document.getElementById('popupSum').innerHTML = `${count} 🍺 = <strong>${(count * BEER_PRICE).toFixed(2)} €</strong>`;
+    document.getElementById('popupSum').innerHTML = `${count} 🍺 = <strong>${formattedTotal}</strong>`;
     document.getElementById('popup').style.display = 'flex';
   }
   
