@@ -229,7 +229,7 @@
 <div class="glass-card qr-grid">
   <h2>📱 QR-Codes</h2>
   <p style="font-size:14px;">Scan zum Bier hinzufügen</p>
-  <div style="overflow-x: auto;"><table><tbody id="qrBody"></tbody></table></div>
+  <div style="overflow-x: auto;"></table><tbody id="qrBody"></tbody></table></div>
 </div>
 
 <div class="glass-card">
@@ -279,6 +279,7 @@ let unsubscribe = null;
 let beerChart = null;
 let pendingPayPerson = null;
 let pendingPayAmount = 0;
+let currentDataCache = {};
 
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 const STORAGE_KEY = "juii_bierdeckel_data";
@@ -317,7 +318,7 @@ async function resetBeerCountForPerson(person) {
     if (!data.history) data.history = [];
     data.history.push({ name: `${person} (bezahlt: ${oldCount} Bier = ${formatEuro(oldCount * BEER_PRICE)})`, time: new Date().toISOString() });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    renderLocalData();
+    refreshUI();
   }
 }
 
@@ -347,7 +348,7 @@ async function removeBeerFromPerson(person) {
       if (!data.history) data.history = [];
       data.history.push({ name: `${person}`, change: -1, time: new Date().toISOString() });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      renderLocalData();
+      refreshUI();
     } else {
       alert(`${person} hat keine Biere zum Entfernen.`);
     }
@@ -475,6 +476,29 @@ function renderQRTable() {
 function loadLocalData() { const stored = localStorage.getItem(STORAGE_KEY); return stored ? JSON.parse(stored) : null; }
 function saveLocalData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 
+function refreshUI() {
+  if (useFirebase && mainDocRef) {
+    getDoc(mainDocRef).then(snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const renderData = {};
+        names.forEach(n => renderData[n] = data[n] || 0);
+        renderMainTable(renderData);
+        updateHistoryUI(data.history || []);
+        renderMonthlyChart(data.history || []);
+      }
+    });
+  } else {
+    let data = loadLocalData();
+    if (!data) { const empty = {}; names.forEach(n => empty[n] = 0); data = { ...empty, history: [] }; saveLocalData(data); }
+    names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
+    if (!data.history) data.history = [];
+    renderMainTable(data);
+    updateHistoryUI(data.history);
+    renderMonthlyChart(data.history);
+  }
+}
+
 function renderLocalData() {
   let data = loadLocalData();
   if (!data) { const empty = {}; names.forEach(n => empty[n] = 0); data = { ...empty, history: [] }; saveLocalData(data); }
@@ -492,20 +516,20 @@ async function addBeerLocal(name) {
   data[name] = (data[name] || 0) + 1;
   data.history.push({ name, time: new Date().toISOString() });
   saveLocalData(data);
-  renderLocalData();
+  refreshUI();
 }
 
 async function resetLocal() {
   if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
   let data = loadLocalData();
-  if (data) { names.forEach(n => data[n] = 0); saveLocalData(data); renderLocalData(); alert("✅ Alle Biere zurückgesetzt"); return true; }
+  if (data) { names.forEach(n => data[n] = 0); saveLocalData(data); refreshUI(); alert("✅ Alle Biere zurückgesetzt"); return true; }
   return false;
 }
 
 async function clearHistoryLocal() {
   if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
   let data = loadLocalData();
-  if (data) { data.history = []; saveLocalData(data); renderLocalData(); alert("✅ Verlauf gelöscht"); return true; }
+  if (data) { data.history = []; saveLocalData(data); refreshUI(); alert("✅ Verlauf gelöscht"); return true; }
   return false;
 }
 
@@ -577,19 +601,7 @@ function loginAdmin() {
     document.getElementById('adminActions').style.display = 'block';
     document.getElementById('adminPassword').value = '';
     alert("✅ Login erfolgreich!");
-    // Tabelle sofort neu rendern, damit -1 Bier Buttons erscheinen
-    if (useFirebase && mainDocRef) { 
-      getDoc(mainDocRef).then(snap => { 
-        if (snap.exists()) { 
-          const data = snap.data(); 
-          const renderData = {}; 
-          names.forEach(n => renderData[n] = data[n] || 0); 
-          renderMainTable(renderData); 
-        } 
-      }); 
-    } else { 
-      renderLocalData(); 
-    }
+    refreshUI();
   } else { alert("❌ Falsches Passwort!"); document.getElementById('adminPassword').value = ''; }
 }
 
@@ -597,25 +609,14 @@ function logoutAdmin() {
   isAdminLoggedIn = false;
   sessionStorage.removeItem('adminAuth');
   document.getElementById('adminActions').style.display = 'none';
-  // Tabelle sofort neu rendern, damit -1 Bier Buttons verschwinden
-  if (useFirebase && mainDocRef) { 
-    getDoc(mainDocRef).then(snap => { 
-      if (snap.exists()) { 
-        const data = snap.data(); 
-        const renderData = {}; 
-        names.forEach(n => renderData[n] = data[n] || 0); 
-        renderMainTable(renderData); 
-      } 
-    }); 
-  } else { 
-    renderLocalData(); 
-  }
+  refreshUI();
 }
 
 function checkAdminSession() {
   if (sessionStorage.getItem('adminAuth') === 'true') {
     isAdminLoggedIn = true;
     document.getElementById('adminActions').style.display = 'block';
+    refreshUI();
   }
 }
 
