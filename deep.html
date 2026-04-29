@@ -307,7 +307,7 @@
     }
   }
   
-  // ==================== POPUP SCHLIESSEN ====================
+  // ==================== POPUP SCHLIESSEN (REINE DOM-OPERATION) ====================
   function closePopup() {
     const popupElem = document.getElementById('popup');
     if (popupElem) {
@@ -619,9 +619,13 @@
     else await addBeerLocal(name);
   }
   
-  async function pay(person) {
-    if (useFirebase && mainDocRef) await payFirebase(person);
-    else await payLocal(person);
+  // WICHTIG: pay als async, aber ohne await in der aufrufenden Funktion
+  function pay(person) {
+    if (useFirebase && mainDocRef) {
+      payFirebase(person); // kein await, läuft im Hintergrund
+    } else {
+      payLocal(person);
+    }
   }
   
   // ==================== POPUP ====================
@@ -645,13 +649,18 @@
     document.getElementById('popup').style.display = 'flex';
   }
   
-  // Zahlen & löschen - Popup schließt SOFORT
+  // Zahlen & löschen - Popup schließt SOFORT (kein async, kein await)
   function onConfirmPayment() {
-    const person = currentPayPerson;
-    if (person) {
-      pay(person); // Async im Hintergrund
+    if (currentPayPerson) {
+      pay(currentPayPerson); // läuft im Hintergrund
     }
-    closePopup(); // Popup sofort schließen
+    // Popup sofort schließen - DIREKT, OHNE VERZÖGERUNG
+    const popupElem = document.getElementById('popup');
+    if (popupElem) {
+      popupElem.style.display = 'none';
+    }
+    currentPayPerson = null;
+    currentPayAmount = 0;
   }
   
   // PayPal bezahlen - Popup schließt SOFORT
@@ -659,7 +668,13 @@
     if (currentPayPerson && currentPayAmount > 0) {
       openPaypal(currentPayAmount, currentPayPerson);
     }
-    closePopup();
+    // Popup sofort schließen
+    const popupElem = document.getElementById('popup');
+    if (popupElem) {
+      popupElem.style.display = 'none';
+    }
+    currentPayPerson = null;
+    currentPayAmount = 0;
   }
   
   // ==================== ADMIN LOGIN ====================
@@ -721,7 +736,12 @@
     if (paypalBtn) paypalBtn.addEventListener('click', onPaypalPayment);
     
     const closeBtn = document.getElementById('closePopupBtn');
-    if (closeBtn) closeBtn.addEventListener('click', closePopup);
+    if (closeBtn) closeBtn.addEventListener('click', function() {
+      const popupElem = document.getElementById('popup');
+      if (popupElem) popupElem.style.display = 'none';
+      currentPayPerson = null;
+      currentPayAmount = 0;
+    });
     
     const resetBtn = document.getElementById('resetAllBtn');
     if (resetBtn) resetBtn.addEventListener('click', async () => { 
