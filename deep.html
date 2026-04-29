@@ -260,15 +260,15 @@
 </footer>
 
 <script>
-  // ==================== FIREBASE KONFIGURATION ====================
+  // ==================== IHRE FIREBASE KONFIGURATION ====================
   const FIREBASE_CONFIG = {
     apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
-  authDomain: "juii-strichliste.firebaseapp.com",
-  projectId: "juii-strichliste",
-  storageBucket: "juii-strichliste.firebasestorage.app",
-  messagingSenderId: "8081599971",
-  appId: "1:8081599971:web:6cc277281b040d995304d6",
-  measurementId: "G-2NNFYKSX3L"
+    authDomain: "juii-strichliste.firebaseapp.com",
+    projectId: "juii-strichliste",
+    storageBucket: "juii-strichliste.firebasestorage.app",
+    messagingSenderId: "8081599971",
+    appId: "1:8081599971:web:6cc277281b040d995304d6",
+    measurementId: "G-2NNFYKSX3L"
   };
   
   // ==================== ADMIN PASSWORT ====================
@@ -309,7 +309,10 @@
   
   // ==================== POPUP SCHLIESSEN ====================
   function closePopup() {
-    document.getElementById('popup').style.display = 'none';
+    const popupElem = document.getElementById('popup');
+    if (popupElem) {
+      popupElem.style.display = 'none';
+    }
     currentPayPerson = null;
     currentPayAmount = 0;
   }
@@ -642,15 +645,16 @@
     document.getElementById('popup').style.display = 'flex';
   }
   
-  // Zahlen & löschen - schließt das Popup sofort
+  // Zahlen & löschen - Popup schließt SOFORT
   function onConfirmPayment() {
-    if (currentPayPerson) {
-      pay(currentPayPerson);
+    const person = currentPayPerson;
+    if (person) {
+      pay(person); // Async im Hintergrund
     }
-    closePopup();
+    closePopup(); // Popup sofort schließen
   }
   
-  // PayPal bezahlen - schließt das Popup sofort
+  // PayPal bezahlen - Popup schließt SOFORT
   function onPaypalPayment() {
     if (currentPayPerson && currentPayAmount > 0) {
       openPaypal(currentPayAmount, currentPayPerson);
