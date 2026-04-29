@@ -19,7 +19,6 @@
     }
     h1 {
       font-size: 2rem;
-      margin: 0 0 0.25rem;
       background: linear-gradient(135deg, #f9b43a, #ffd966);
       background-clip: text;
       -webkit-background-clip: text;
@@ -189,7 +188,7 @@
     <table>
       <thead><tr><th>Name</th><th>🍺 Anzahl / Betrag</th><th>Aktionen</th></tr></thead>
       <tbody id="tableBody">
-        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td>51
+        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></tr>
       </tbody>
     </table>
   </div>
@@ -198,33 +197,16 @@
 <div id="chartContainer">
   <h2>📈 Bierkonsum pro Monat</h2>
   <canvas id="beerChart" width="800" height="350"></canvas>
-  
   <div id="monthStats" class="stats-container">
-    <div class="stat-card">
-      <div class="stat-month" id="currentMonthLabel">-</div>
-      <div class="stat-count" id="currentMonthCount">0</div>
-      <div class="stat-label">🍺 Biere</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-month" id="lastMonthLabel">-</div>
-      <div class="stat-count" id="lastMonthCount">0</div>
-      <div class="stat-label">🍺 Biere</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-month" id="twoMonthsAgoLabel">-</div>
-      <div class="stat-count" id="twoMonthsAgoCount">0</div>
-      <div class="stat-label">🍺 Biere</div>
-    </div>
+    <div class="stat-card"><div class="stat-month" id="currentMonthLabel">-</div><div class="stat-count" id="currentMonthCount">0</div><div class="stat-label">🍺 Biere</div></div>
+    <div class="stat-card"><div class="stat-month" id="lastMonthLabel">-</div><div class="stat-count" id="lastMonthCount">0</div><div class="stat-label">🍺 Biere</div></div>
+    <div class="stat-card"><div class="stat-month" id="twoMonthsAgoLabel">-</div><div class="stat-count" id="twoMonthsAgoCount">0</div><div class="stat-label">🍺 Biere</div></div>
   </div>
 </div>
 
 <div class="glass-card qr-grid">
   <h2>📱 QR-Codes</h2>
-  <div style="overflow-x: auto;">
-    <table>
-      <tbody id="qrBody"></tbody>
-    </table>
-  </div>
+  <div style="overflow-x: auto;"><table><tbody id="qrBody"></tbody></table></div>
 </div>
 
 <div class="glass-card">
@@ -255,279 +237,261 @@
   </div>
 </div>
 
-<footer>
-  <span id="connectionStatus"></span>
-</footer>
+<footer><span id="connectionStatus"></span></footer>
 
 <script>
-  // ==================== FIREBASE KONFIGURATION ====================
-  const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
-    authDomain: "juii-strichliste.firebaseapp.com",
-    projectId: "juii-strichliste",
-    storageBucket: "juii-strichliste.firebasestorage.app",
-    messagingSenderId: "8081599971",
-    appId: "1:8081599971:web:6cc277281b040d995304d6",
-    measurementId: "G-2NNFYKSX3L"
-  };
-  
-  // ==================== ADMIN PASSWORT ====================
-  const ADMIN_PASSWORD = "admin123";
-  
-  // ==================== PAYPAL KONFIGURATION ====================
-  const PAYPAL_EMAIL = "christian@walter.ink";
-  
-  let isAdminLoggedIn = false;
-  let useFirebase = false;
-  let mainDocRef = null;
-  let unsubscribe = null;
-  let beerChart = null;
-  let currentPayPerson = null;
-  let currentPayAmount = 0;
-  
-  const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
-  const BEER_PRICE = 2.00;
-  const STORAGE_KEY = "juii_bierdeckel_data";
-  
-  // ==================== HILFSFUNKTIONEN ====================
-  function escapeHtml(str) { return str.replace(/[&<>]/g, function(m) { return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'; }); }
-  
-  function formatEuro(amount) {
-    if (amount === Math.floor(amount)) {
-      return `${Math.floor(amount)} €`;
-    } else {
-      return `${amount.toFixed(2)} €`;
-    }
-  }
-  
-  function updateConnectionStatus(status) {
-    const statusDiv = document.getElementById('connectionStatus');
-    if (statusDiv) statusDiv.innerHTML = status;
-  }
-  
-  // ==================== POPUP SCHLIESSEN (GARANTIERT) ====================
-  function closePopup() {
-    const popupElem = document.getElementById('popup');
-    if (popupElem) {
-      popupElem.style.display = 'none';
-    }
-    currentPayPerson = null;
-    currentPayAmount = 0;
-  }
-  
-  // ==================== PAYPAL ====================
-  function openPaypal(amount, personName) {
-    const amountFormatted = amount.toFixed(2);
-    const description = `Bierdeckel-Zahlung von ${personName}`;
-    const paypalUrl = `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(PAYPAL_EMAIL)}&amount=${amountFormatted}&currency_code=EUR&item_name=${encodeURIComponent(description)}&no_shipping=1&no_note=1`;
-    window.open(paypalUrl, '_blank');
-  }
-  
-  // ==================== MONATSÜBERSICHT ====================
-  function getMonthName(year, month) {
-    const date = new Date(year, month - 1, 1);
-    return date.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
-  }
-  
-  function updateMonthStats(historyArray) {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-    
-    const targets = [
-      { year: currentYear, month: currentMonth, elementId: "currentMonthCount", labelId: "currentMonthLabel" },
-      { year: currentMonth === 1 ? currentYear - 1 : currentYear, month: currentMonth === 1 ? 12 : currentMonth - 1, elementId: "lastMonthCount", labelId: "lastMonthLabel" },
-      { year: currentMonth <= 2 ? currentYear - 1 : currentYear, month: currentMonth === 1 ? 11 : (currentMonth === 2 ? 12 : currentMonth - 2), elementId: "twoMonthsAgoCount", labelId: "twoMonthsAgoLabel" }
-    ];
-    
-    targets.forEach((target) => {
-      const labelElem = document.getElementById(target.labelId);
-      if (labelElem) labelElem.innerText = getMonthName(target.year, target.month);
-    });
-    
-    const counts = [0, 0, 0];
-    if (historyArray && Array.isArray(historyArray)) {
-      historyArray.forEach(entry => {
-        if (entry?.time) {
-          const date = new Date(entry.time);
-          if (!isNaN(date.getTime())) {
-            const entryYear = date.getFullYear();
-            const entryMonth = date.getMonth() + 1;
-            for (let i = 0; i < targets.length; i++) {
-              if (entryYear === targets[i].year && entryMonth === targets[i].month) {
-                counts[i]++;
-                break;
-              }
-            }
-          }
+// ==================== FIREBASE ====================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
+  authDomain: "juii-strichliste.firebaseapp.com",
+  projectId: "juii-strichliste",
+  storageBucket: "juii-strichliste.firebasestorage.app",
+  messagingSenderId: "8081599971",
+  appId: "1:8081599971:web:6cc277281b040d995304d6"
+};
+
+const ADMIN_PASSWORD = "admin123";
+const PAYPAL_EMAIL = "christian@walter.ink";
+
+let isAdminLoggedIn = false;
+let useFirebase = false;
+let mainDocRef = null;
+let unsubscribe = null;
+let beerChart = null;
+let currentPayPerson = null;
+let currentPayCount = 0;
+
+const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
+const BEER_PRICE = 2;
+
+// ==================== HILFSFUNKTIONEN ====================
+function escapeHtml(str) { return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
+function formatEuro(amount) { return amount === Math.floor(amount) ? `${Math.floor(amount)} €` : `${amount.toFixed(2)} €`; }
+function updateConnectionStatus(msg) { document.getElementById('connectionStatus').innerHTML = msg; }
+
+// ==================== POPUP SCHLIESSEN - GANZ EINFACH ====================
+function closePopup() {
+  console.log("closePopup wurde aufgerufen");
+  document.getElementById('popup').style.display = 'none';
+  currentPayPerson = null;
+  currentPayCount = 0;
+}
+
+// ==================== PAYPAL ====================
+function openPaypal(amount, personName) {
+  const url = `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(PAYPAL_EMAIL)}&amount=${amount.toFixed(2)}&currency_code=EUR&item_name=Bierdeckel-Zahlung%20von%20${encodeURIComponent(personName)}&no_shipping=1&no_note=1`;
+  window.open(url, '_blank');
+}
+
+// ==================== ZAHLEN & POPUP SCHLIESSEN ====================
+function doPayment() {
+  console.log("doPayment aufgerufen für: " + currentPayPerson);
+  if (currentPayPerson && useFirebase && mainDocRef) {
+    import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js").then(({ getDoc, setDoc }) => {
+      getDoc(mainDocRef).then(snap => {
+        if (snap.exists()) {
+          let data = snap.data();
+          data[currentPayPerson] = 0;
+          setDoc(mainDocRef, data);
         }
       });
-    }
-    
-    document.getElementById('currentMonthCount').innerText = counts[0];
-    document.getElementById('lastMonthCount').innerText = counts[1];
-    document.getElementById('twoMonthsAgoCount').innerText = counts[2];
-  }
-  
-  // ==================== UI RENDER ====================
-  function renderMainTable(data) {
-    const tbody = document.getElementById('tableBody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    if (!data) { tbody.innerHTML = '</table><td colspan="3">📭 Keine Daten</td>52'; return; }
-    for (let name of names) {
-      const count = data[name] || 0;
-      const total = count * BEER_PRICE;
-      const formattedTotal = formatEuro(total);
-      let icons = count > 0 ? "🍺".repeat(Math.min(count, 20)) + (count > 20 ? ` +${count-20}` : "") : "—";
-      tbody.innerHTML += `
-        <tr>
-          <td style="font-weight:500;">${escapeHtml(name)}</td>
-          <td class="beer-icons">${icons}<br><span class="beer-price">${formattedTotal}</span></td>
-          <td>
-            <button class="add" data-name="${escapeHtml(name)}">➕ +1</button>
-            <button class="pay" data-name-pay="${escapeHtml(name)}">💶 Zahlen</button>
-          </td>
-        </tr>
-      `;
-    }
-    document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
-    document.querySelectorAll('.pay').forEach(btn => { btn.onclick = () => openPayPopup(btn.dataset.namePay); });
-  }
-  
-  function renderMonthlyChart(historyArray) {
-    const months = new Map();
-    (historyArray || []).forEach(e => {
-      if (e?.time) { 
-        const d = new Date(e.time); 
-        if (!isNaN(d)) {
-          const key = `${d.getMonth()+1}/${d.getFullYear()}`;
-          months.set(key, (months.get(key) || 0) + 1);
-        }
-      }
     });
-    
-    const sortedLabels = Array.from(months.keys()).sort((a,b) => {
-      const [mA, yA] = a.split('/');
-      const [mB, yB] = b.split('/');
-      return (parseInt(yA) - parseInt(yB)) || (parseInt(mA) - parseInt(mB));
-    });
-    
-    const ctx = document.getElementById('beerChart').getContext('2d');
-    if (beerChart) beerChart.destroy();
-    beerChart = new Chart(ctx, { 
-      type: 'bar', 
-      data: { 
-        labels: sortedLabels, 
-        datasets: [{ label: '🍺 Biere/Monat', data: sortedLabels.map(l => months.get(l) || 0), backgroundColor: '#f9b43a', borderRadius: 12 }] 
-      }, 
-      options: { 
-        responsive: true, 
-        plugins: { legend: { labels: { color: '#fff' } } }, 
-        scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966' } } } 
-      } 
-    });
-    
-    updateMonthStats(historyArray);
-  }
-  
-  function updateHistoryUI(historyArray) {
-    const ul = document.getElementById('history');
-    if (!ul) return;
-    ul.innerHTML = '';
-    if (!historyArray?.length) { ul.innerHTML = '<li>📭 Keine Einträge</li>'; return; }
-    [...historyArray].reverse().forEach(e => { ul.innerHTML += `<li>🍺 ${e.name} – ${new Date(e.time).toLocaleString('de-DE')}</li>`; });
-  }
-  
-  function renderQRTable() {
-    const qrBody = document.getElementById('qrBody');
-    if (!qrBody) return;
-    qrBody.innerHTML = '';
-    const baseUrl = window.location.origin + window.location.pathname;
-    names.forEach(name => {
-      const id = `qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`;
-      qrBody.innerHTML += `<tr><td style="font-weight:bold;">${escapeHtml(name)}</td><td><canvas id="${id}" width="120" height="120"></canvas></td></tr>`;
-    });
-    setTimeout(() => {
-      names.forEach(name => {
-        const canvas = document.getElementById(`qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`);
-        if (canvas) QRCode.toCanvas(canvas, `${baseUrl}?add=${encodeURIComponent(name)}`, { width: 110 });
-      });
-    }, 100);
-  }
-  
-  // ==================== LOCALSTORAGE ====================
-  function loadLocalData() {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : null;
-  }
-  
-  function saveLocalData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
-  
-  function renderLocalData() {
-    let data = loadLocalData();
-    if (!data) { const empty = {}; names.forEach(n => empty[n] = 0); data = { ...empty, history: [] }; saveLocalData(data); }
+  } else if (currentPayPerson) {
+    // localStorage fallback
+    let data = JSON.parse(localStorage.getItem("juii_bierdeckel_data") || '{"history":[]}');
     names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
-    if (!data.history) data.history = [];
-    renderMainTable(data);
-    updateHistoryUI(data.history);
-    renderMonthlyChart(data.history);
-    updateConnectionStatus('💾 Lokaler Speicher (Offline-Modus)');
+    data[currentPayPerson] = 0;
+    localStorage.setItem("juii_bierdeckel_data", JSON.stringify(data));
   }
-  
-  async function addBeerLocal(name) {
-    let data = loadLocalData() || (() => { const d = {}; names.forEach(n => d[n] = 0); d.history = []; return d; })();
-    data[name] = (data[name] || 0) + 1;
-    data.history.push({ name, time: new Date().toISOString() });
-    saveLocalData(data);
-    renderLocalData();
+  // Popup schließen
+  closePopup();
+}
+
+function doPaypal() {
+  console.log("doPaypal aufgerufen");
+  if (currentPayPerson && currentPayCount > 0) {
+    openPaypal(currentPayCount * BEER_PRICE, currentPayPerson);
   }
-  
-  async function payLocal(person) {
-    if (!person) return;
-    let data = loadLocalData();
-    if (data) { data[person] = 0; saveLocalData(data); renderLocalData(); }
+  closePopup();
+}
+
+// ==================== UI RENDER ====================
+function renderMainTable(data) {
+  const tbody = document.getElementById('tableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  for (let name of names) {
+    const count = data[name] || 0;
+    const icons = count > 0 ? "🍺".repeat(Math.min(count, 20)) + (count > 20 ? ` +${count-20}` : "") : "—";
+    tbody.innerHTML += `<tr><td style="font-weight:500;">${escapeHtml(name)}</td><td class="beer-icons">${icons}<br><span class="beer-price">${formatEuro(count * BEER_PRICE)}</span></td><td><button class="add" data-name="${escapeHtml(name)}">➕ +1</button><button class="pay" data-name-pay="${escapeHtml(name)}">💶 Zahlen</button></td></tr>`;
   }
+  document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
+  document.querySelectorAll('.pay').forEach(btn => { btn.onclick = () => openPayPopup(btn.dataset.namePay); });
+}
+
+function renderMonthlyChart(historyArray) {
+  const months = new Map();
+  (historyArray || []).forEach(e => {
+    if (e?.time) { const d = new Date(e.time); if (!isNaN(d)) months.set(`${d.getMonth()+1}/${d.getFullYear()}`, (months.get(`${d.getMonth()+1}/${d.getFullYear()}`) || 0) + 1); }
+  });
+  const labels = Array.from(months.keys()).sort((a,b) => { const [mA,yA]=a.split('/'); const [mB,yB]=b.split('/'); return (parseInt(yA)-parseInt(yB)) || (parseInt(mA)-parseInt(mB)); });
+  const ctx = document.getElementById('beerChart').getContext('2d');
+  if (beerChart) beerChart.destroy();
+  beerChart = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: '🍺 Biere/Monat', data: labels.map(l=>months.get(l)), backgroundColor: '#f9b43a', borderRadius: 12 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#fff' } } }, scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966' } } } } });
   
-  async function resetLocal() {
-    if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
-    let data = loadLocalData();
-    if (data) { names.forEach(n => data[n] = 0); saveLocalData(data); renderLocalData(); alert("✅ Alle Biere zurückgesetzt"); return true; }
-    return false;
-  }
-  
-  async function clearHistoryLocal() {
-    if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
-    let data = loadLocalData();
-    if (data) { data.history = []; saveLocalData(data); renderLocalData(); alert("✅ Verlauf gelöscht"); return true; }
-    return false;
-  }
-  
-  // ==================== FIREBASE ====================
-  async function addBeerFirebase(name) {
-    if (!mainDocRef) return;
+  // Monatsübersicht
+  const now = new Date();
+  const cy = now.getFullYear(), cm = now.getMonth()+1;
+  const targets = [[cy,cm],[cm===1?cy-1:cy, cm===1?12:cm-1],[cm<=2?cy-1:cy, cm===1?11:(cm===2?12:cm-2)]];
+  const counts = [0,0,0];
+  (historyArray || []).forEach(e => {
+    if(e?.time){ const d=new Date(e.time); if(!isNaN(d)){ const ey=d.getFullYear(), em=d.getMonth()+1; targets.forEach(([ty,tm],i)=>{ if(ey===ty && em===tm) counts[i]++; }); } }
+  });
+  document.getElementById('currentMonthCount').innerText = counts[0];
+  document.getElementById('lastMonthCount').innerText = counts[1];
+  document.getElementById('twoMonthsAgoCount').innerText = counts[2];
+  document.getElementById('currentMonthLabel').innerText = `${targets[0][1]}/${targets[0][0]}`;
+  document.getElementById('lastMonthLabel').innerText = `${targets[1][1]}/${targets[1][0]}`;
+  document.getElementById('twoMonthsAgoLabel').innerText = `${targets[2][1]}/${targets[2][0]}`;
+}
+
+function updateHistoryUI(historyArray) {
+  const ul = document.getElementById('history');
+  if (!ul) return;
+  ul.innerHTML = '';
+  if (!historyArray?.length) { ul.innerHTML = '<li>📭 Keine Einträge</li>'; return; }
+  [...historyArray].reverse().forEach(e => { ul.innerHTML += `<li>🍺 ${e.name} – ${new Date(e.time).toLocaleString('de-DE')}</li>`; });
+}
+
+function renderQRTable() {
+  const qrBody = document.getElementById('qrBody');
+  if (!qrBody) return;
+  qrBody.innerHTML = '';
+  const baseUrl = window.location.origin + window.location.pathname;
+  names.forEach(name => {
+    const id = `qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    qrBody.innerHTML += `<tr><td style="font-weight:bold;">${escapeHtml(name)}</td><td><canvas id="${id}" width="120" height="120"></canvas></td></tr>`;
+  });
+  setTimeout(() => {
+    names.forEach(name => {
+      const canvas = document.getElementById(`qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`);
+      if (canvas) QRCode.toCanvas(canvas, `${baseUrl}?add=${encodeURIComponent(name)}`, { width: 110 });
+    });
+  }, 100);
+}
+
+// ==================== DATENBANK ====================
+async function addBeer(name) {
+  if (useFirebase && mainDocRef) {
     const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
     const snap = await getDoc(mainDocRef);
     let current = snap.exists() ? snap.data() : {};
     current[name] = (current[name] || 0) + 1;
     current.history = [...(current.history || []), { name, time: new Date().toISOString() }];
     await setDoc(mainDocRef, current);
+  } else {
+    let data = JSON.parse(localStorage.getItem("juii_bierdeckel_data") || '{"history":[]}');
+    names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
+    data[name] = (data[name] || 0) + 1;
+    data.history.push({ name, time: new Date().toISOString() });
+    localStorage.setItem("juii_bierdeckel_data", JSON.stringify(data));
+    renderLocalData();
   }
-  
-  async function payFirebase(person) {
-    if (!person || !mainDocRef) return;
-    const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+}
+
+async function openPayPopup(name) {
+  currentPayPerson = name;
+  let count = 0;
+  if (useFirebase && mainDocRef) {
+    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
     const snap = await getDoc(mainDocRef);
-    if (snap.exists()) {
-      let current = snap.data();
-      current[person] = 0;
-      await setDoc(mainDocRef, current);
-    }
+    count = snap.exists() ? (snap.data()[name] || 0) : 0;
+  } else {
+    const data = JSON.parse(localStorage.getItem("juii_bierdeckel_data") || '{"history":[]}');
+    count = data[name] || 0;
   }
-  
-  async function resetFirebase() {
-    if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
-    if (!mainDocRef) return false;
+  currentPayCount = count;
+  document.getElementById('popupName').innerText = name;
+  document.getElementById('popupSum').innerHTML = `${count} 🍺 = <strong>${formatEuro(count * BEER_PRICE)}</strong>`;
+  document.getElementById('popup').style.display = 'flex';
+}
+
+function renderLocalData() {
+  let data = JSON.parse(localStorage.getItem("juii_bierdeckel_data") || '{"history":[]}');
+  names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
+  if (!data.history) data.history = [];
+  renderMainTable(data);
+  updateHistoryUI(data.history);
+  renderMonthlyChart(data.history);
+}
+
+async function initFirebase() {
+  updateConnectionStatus('📡 Verbinde mit Firebase...');
+  try {
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js");
+    const { getFirestore, doc, getDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const app = initializeApp(FIREBASE_CONFIG);
+    const db = getFirestore(app);
+    mainDocRef = doc(db, "strichliste", "juii_main");
+    const testSnap = await getDoc(mainDocRef);
+    if (!testSnap.exists()) {
+      const emptyData = { history: [] };
+      names.forEach(n => emptyData[n] = 0);
+      renderMainTable(emptyData);
+      updateHistoryUI([]);
+      renderMonthlyChart([]);
+    } else {
+      const data = testSnap.data();
+      const renderData = {};
+      names.forEach(n => renderData[n] = data[n] || 0);
+      renderMainTable(renderData);
+      updateHistoryUI(data.history || []);
+      renderMonthlyChart(data.history || []);
+    }
+    updateConnectionStatus('✅ Firebase verbunden');
+    useFirebase = true;
+    unsubscribe = onSnapshot(mainDocRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const snapData = snapshot.data();
+        const newData = {};
+        names.forEach(n => newData[n] = typeof snapData[n] === 'number' ? snapData[n] : 0);
+        renderMainTable(newData);
+        updateHistoryUI(snapData.history || []);
+        renderMonthlyChart(snapData.history || []);
+      }
+    });
+    return true;
+  } catch (err) {
+    updateConnectionStatus('⚠️ Lokaler Modus');
+    renderLocalData();
+    useFirebase = false;
+    return false;
+  }
+}
+
+// ==================== ADMIN ====================
+function loginAdmin() {
+  const pwd = document.getElementById('adminPassword').value;
+  if (pwd === ADMIN_PASSWORD) {
+    isAdminLoggedIn = true;
+    sessionStorage.setItem('adminAuth', 'true');
+    document.getElementById('adminActions').style.display = 'block';
+    document.getElementById('adminPassword').value = '';
+    alert("✅ Login erfolgreich!");
+  } else {
+    alert("❌ Falsches Passwort! (admin123)");
+  }
+}
+
+function logoutAdmin() {
+  isAdminLoggedIn = false;
+  sessionStorage.removeItem('adminAuth');
+  document.getElementById('adminActions').style.display = 'none';
+}
+
+async function resetAll() {
+  if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return; }
+  if (useFirebase && mainDocRef) {
     const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
     const snap = await getDoc(mainDocRef);
     if (snap.exists()) {
@@ -535,14 +499,19 @@
       names.forEach(n => current[n] = 0);
       await setDoc(mainDocRef, current);
       alert("✅ Alle Biere zurückgesetzt");
-      return true;
     }
-    return false;
+  } else {
+    let data = JSON.parse(localStorage.getItem("juii_bierdeckel_data") || '{"history":[]}');
+    names.forEach(n => data[n] = 0);
+    localStorage.setItem("juii_bierdeckel_data", JSON.stringify(data));
+    renderLocalData();
+    alert("✅ Alle Biere zurückgesetzt");
   }
-  
-  async function clearHistoryFirebase() {
-    if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
-    if (!mainDocRef) return false;
+}
+
+async function clearHistory() {
+  if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return; }
+  if (useFirebase && mainDocRef) {
     const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
     const snap = await getDoc(mainDocRef);
     if (snap.exists()) {
@@ -550,190 +519,57 @@
       current.history = [];
       await setDoc(mainDocRef, current);
       alert("✅ Verlauf gelöscht");
-      return true;
     }
-    return false;
+  } else {
+    let data = JSON.parse(localStorage.getItem("juii_bierdeckel_data") || '{"history":[]}');
+    data.history = [];
+    localStorage.setItem("juii_bierdeckel_data", JSON.stringify(data));
+    renderLocalData();
+    alert("✅ Verlauf gelöscht");
   }
-  
-  // ==================== FIREBASE INIT ====================
-  async function initFirebase() {
-    updateConnectionStatus('📡 Verbinde mit Firebase...');
-    try {
-      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js");
-      const { getFirestore, doc, getDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-      
-      const app = initializeApp(FIREBASE_CONFIG);
-      const db = getFirestore(app);
-      mainDocRef = doc(db, "strichliste", "juii_main");
-      
-      const testSnap = await getDoc(mainDocRef);
-      if (!testSnap.exists()) {
-        const emptyData = { history: [] };
-        names.forEach(n => emptyData[n] = 0);
-        renderMainTable(emptyData);
-        updateHistoryUI([]);
-        renderMonthlyChart([]);
-      } else {
-        const data = testSnap.data();
-        const renderData = {};
-        names.forEach(n => renderData[n] = data[n] || 0);
-        renderMainTable(renderData);
-        updateHistoryUI(data.history || []);
-        renderMonthlyChart(data.history || []);
-      }
-      
-      updateConnectionStatus('✅ Firebase verbunden');
-      useFirebase = true;
-      
-      unsubscribe = onSnapshot(mainDocRef, (snapshot) => {
-        if (snapshot.exists()) {
-          const snapData = snapshot.data();
-          const newData = {};
-          names.forEach(n => newData[n] = typeof snapData[n] === 'number' ? snapData[n] : 0);
-          renderMainTable(newData);
-          updateHistoryUI(snapData.history || []);
-          renderMonthlyChart(snapData.history || []);
-        }
-      });
-      return true;
-    } catch (err) {
-      console.error("Firebase Fehler:", err);
-      updateConnectionStatus('⚠️ Firebase nicht erreichbar – Lokaler Modus');
-      renderLocalData();
-      useFirebase = false;
-      return false;
-    }
+}
+
+// ==================== INIT ====================
+function handleUrlParam() {
+  const params = new URLSearchParams(window.location.search);
+  const add = params.get('add');
+  if (add && names.includes(add)) {
+    setTimeout(() => addBeer(add), 800);
+    window.history.replaceState({}, "", window.location.pathname);
   }
-  
-  // ==================== DISPATCHER ====================
-  async function addBeer(name) {
-    if (useFirebase && mainDocRef) await addBeerFirebase(name);
-    else await addBeerLocal(name);
+}
+
+async function start() {
+  if (sessionStorage.getItem('adminAuth') === 'true') {
+    isAdminLoggedIn = true;
+    document.getElementById('adminActions').style.display = 'block';
   }
+  renderQRTable();
+  await initFirebase();
+  handleUrlParam();
   
-  function pay(person) {
-    if (useFirebase && mainDocRef) {
-      payFirebase(person);
-    } else {
-      payLocal(person);
-    }
-  }
+  // BUTTONS - DIREKTE ZUORDNUNG
+  document.getElementById('loginBtn').onclick = loginAdmin;
+  document.getElementById('logoutBtn').onclick = logoutAdmin;
+  document.getElementById('resetAllBtn').onclick = resetAll;
+  document.getElementById('clearHistoryBtn').onclick = clearHistory;
   
-  // ==================== POPUP ====================
-  async function openPayPopup(name) {
-    currentPayPerson = name;
-    let count = 0;
-    if (useFirebase && mainDocRef) {
-      try {
-        const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-        const snap = await getDoc(mainDocRef);
-        count = snap.exists() ? (snap.data()[name] || 0) : 0;
-      } catch(e) { count = 0; }
-    } else {
-      const data = loadLocalData();
-      count = data ? (data[name] || 0) : 0;
-    }
-    currentPayAmount = count * BEER_PRICE;
-    const formattedTotal = formatEuro(currentPayAmount);
-    document.getElementById('popupName').innerText = name;
-    document.getElementById('popupSum').innerHTML = `${count} 🍺 = <strong>${formattedTotal}</strong>`;
-    document.getElementById('popup').style.display = 'flex';
-  }
-  
-  // ==================== BUTTON HANDLER MIT GARANTIERTEM POPUP-SCHLIESSEN ====================
-  window.handleConfirmPayment = function() {
-    // Zahlung im Hintergrund ausführen
-    if (currentPayPerson) {
-      pay(currentPayPerson);
-    }
-    // Popup GARANTIERT schließen
-    document.getElementById('popup').style.display = 'none';
-    currentPayPerson = null;
-    currentPayAmount = 0;
+  // POPUP BUTTONS - HIER IST DER WICHTIGE TEIL
+  document.getElementById('confirmPayBtn').onclick = function() {
+    console.log("Zahlen Button geklickt");
+    doPayment();
   };
-  
-  window.handlePaypalPayment = function() {
-    if (currentPayPerson && currentPayAmount > 0) {
-      openPaypal(currentPayAmount, currentPayPerson);
-    }
-    // Popup GARANTIERT schließen
-    document.getElementById('popup').style.display = 'none';
-    currentPayPerson = null;
-    currentPayAmount = 0;
+  document.getElementById('paypalBtn').onclick = function() {
+    console.log("PayPal Button geklickt");
+    doPaypal();
   };
-  
-  window.handleClosePopup = function() {
-    document.getElementById('popup').style.display = 'none';
-    currentPayPerson = null;
-    currentPayAmount = 0;
+  document.getElementById('closePopupBtn').onclick = function() {
+    console.log("Abbrechen Button geklickt");
+    closePopup();
   };
-  
-  // ==================== ADMIN LOGIN ====================
-  window.loginAdmin = function() {
-    const passwordInput = document.getElementById('adminPassword');
-    const password = passwordInput.value;
-    if (password === ADMIN_PASSWORD) {
-      isAdminLoggedIn = true;
-      sessionStorage.setItem('adminAuth', 'true');
-      document.getElementById('adminActions').style.display = 'block';
-      passwordInput.value = '';
-      alert("✅ Login erfolgreich!");
-    } else {
-      alert("❌ Falsches Passwort! (admin123)");
-      passwordInput.value = '';
-    }
-  };
-  
-  window.logoutAdmin = function() {
-    isAdminLoggedIn = false;
-    sessionStorage.removeItem('adminAuth');
-    document.getElementById('adminActions').style.display = 'none';
-  };
-  
-  function checkAdminSession() {
-    if (sessionStorage.getItem('adminAuth') === 'true') {
-      isAdminLoggedIn = true;
-      document.getElementById('adminActions').style.display = 'block';
-    }
-  }
-  
-  // ==================== INIT ====================
-  function handleUrlParam() {
-    const params = new URLSearchParams(window.location.search);
-    const add = params.get('add');
-    if (add && names.includes(add)) {
-      setTimeout(() => addBeer(add), 800);
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }
-  
-  async function start() {
-    checkAdminSession();
-    renderQRTable();
-    await initFirebase();
-    handleUrlParam();
-    
-    // Buttons mit onclick direkt verbinden (nicht über addEventListener)
-    document.getElementById('loginBtn').onclick = window.loginAdmin;
-    document.getElementById('logoutBtn').onclick = window.logoutAdmin;
-    document.getElementById('confirmPayBtn').onclick = window.handleConfirmPayment;
-    document.getElementById('paypalBtn').onclick = window.handlePaypalPayment;
-    document.getElementById('closePopupBtn').onclick = window.handleClosePopup;
-    
-    const resetBtn = document.getElementById('resetAllBtn');
-    if (resetBtn) resetBtn.onclick = async () => { 
-      if (useFirebase) await resetFirebase(); 
-      else await resetLocal(); 
-    };
-    
-    const clearBtn = document.getElementById('clearHistoryBtn');
-    if (clearBtn) clearBtn.onclick = async () => { 
-      if (useFirebase) await clearHistoryFirebase(); 
-      else await clearHistoryLocal(); 
-    };
-  }
-  
-  start();
+}
+
+start();
 </script>
 </body>
 </html>
