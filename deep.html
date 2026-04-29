@@ -189,7 +189,7 @@
     <table>
       <thead><tr><th>Name</th><th>🍺 Anzahl / Betrag</th><th>Aktionen</th></tr></thead>
       <tbody id="tableBody">
-        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td>湾
+        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></tr>
       </tbody>
     </table>
   </div>
@@ -221,7 +221,7 @@
 <div class="glass-card qr-grid">
   <h2>📱 QR-Codes</h2>
   <div style="overflow-x: auto;">
-    <table>
+    </table>
       <tbody id="qrBody"></tbody>
     </table>
   </div>
@@ -262,7 +262,7 @@
 <script>
   // ==================== FIREBASE KONFIGURATION ====================
   const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
+    apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
   authDomain: "juii-strichliste.firebaseapp.com",
   projectId: "juii-strichliste",
   storageBucket: "juii-strichliste.firebasestorage.app",
@@ -309,7 +309,10 @@
   
   // ==================== POPUP SCHLIESSEN ====================
   function closePopup() {
-    document.getElementById('popup').style.display = 'none';
+    const popupElem = document.getElementById('popup');
+    if (popupElem) {
+      popupElem.style.display = 'none';
+    }
     currentPayPerson = null;
     currentPayAmount = 0;
   }
@@ -319,8 +322,6 @@
     const amountFormatted = amount.toFixed(2);
     const description = `Bierdeckel-Zahlung von ${personName}`;
     const paypalUrl = `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(PAYPAL_EMAIL)}&amount=${amountFormatted}&currency_code=EUR&item_name=${encodeURIComponent(description)}&no_shipping=1&no_note=1`;
-    
-    // Öffnet PayPal in einem neuen Tab
     window.open(paypalUrl, '_blank');
   }
   
@@ -357,7 +358,6 @@
           if (!isNaN(date.getTime())) {
             const entryYear = date.getFullYear();
             const entryMonth = date.getMonth() + 1;
-            
             for (let i = 0; i < targets.length; i++) {
               if (entryYear === targets[i].year && entryMonth === targets[i].month) {
                 counts[i]++;
@@ -649,6 +649,7 @@
     if (currentPayPerson) {
       await pay(currentPayPerson);
     }
+    // Popup sofort schließen (auch wenn pay noch nicht ganz fertig ist)
     closePopup();
   }
   
