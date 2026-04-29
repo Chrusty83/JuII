@@ -207,9 +207,9 @@
   <h2>📋 Strichliste</h2>
   <div style="overflow-x: auto;">
     <table>
-      <thead><tr><th>Name</th><th>🍺 Anzahl / Kosten</th><th>Aktionen</th><td></thead>
+      <thead><tr><th>Name</th><th>🍺 Anzahl / Kosten</th><th>Aktionen</th></tr></thead>
       <tbody id="tableBody">
-        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td>5
+        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></tr>
       </tbody>
     </table>
   </div>
@@ -321,7 +321,6 @@ async function resetBeerCountForPerson(person) {
   }
 }
 
-// BIER ENTFERNEN - mit negativem Zähler für korrekte Statistik
 async function removeBeerFromPerson(person) {
   if (!isAdminLoggedIn) { alert("Keine Berechtigung! Nur für Admin."); return; }
   
@@ -333,7 +332,6 @@ async function removeBeerFromPerson(person) {
       const currentCount = current[person] || 0;
       if (currentCount > 0) {
         current[person] = currentCount - 1;
-        // WICHTIG: Negativer Eintrag in der History für korrekte Monatsstatistik
         current.history = [...(current.history || []), { name: `${person}`, change: -1, time: new Date().toISOString() }];
         await setDoc(mainDocRef, current);
       } else {
@@ -358,7 +356,6 @@ async function removeBeerFromPerson(person) {
 
 function getMonthName(year, month) { return new Date(year, month - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' }); }
 
-// Monatsstatistik - zählt jetzt sowohl positive als auch negative Änderungen
 function updateMonthStats(historyArray) {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -383,9 +380,9 @@ function updateMonthStats(historyArray) {
           for (let i = 0; i < targets.length; i++) {
             if (entryYear === targets[i].year && entryMonth === targets[i].month) {
               if (entry.change === -1) {
-                nettoCounts[i]--; // Bier wurde entfernt
+                nettoCounts[i]--;
               } else {
-                nettoCounts[i]++; // Normales Bier hinzugefügt
+                nettoCounts[i]++;
               }
               break;
             }
@@ -408,9 +405,16 @@ function renderMainTable(data) {
     const count = data[name] || 0;
     const total = count * BEER_PRICE;
     let icons = count > 0 ? "🍺".repeat(Math.min(count, 20)) + (count > 20 ? ` +${count-20}` : "") : "—";
-    let buttonsHtml = `<button class="add" data-name="${escapeHtml(name)}">+1 Bier</button><button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">bezahlt</button>`;
-    if (isAdminLoggedIn) buttonsHtml += `<button class="remove" data-name-remove="${escapeHtml(name)}">-1 Bier</button>`;
-    tbody.innerHTML += `<tr><td style="font-weight:500;">${escapeHtml(name)}</td><td class="beer-icons">${icons}<br><span class="beer-cost">${formatEuro(total)}</span></td><td><div class="action-buttons">${buttonsHtml}</div></td></tr>`;
+    let buttonsHtml = `<button class="add" data-name="${escapeHtml(name)}">+1 Bier</button>
+                       <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">bezahlt</button>`;
+    if (isAdminLoggedIn) {
+      buttonsHtml += `<button class="remove" data-name-remove="${escapeHtml(name)}">-1 Bier</button>`;
+    }
+    tbody.innerHTML += `<tr>
+      <td style="font-weight:500;">${escapeHtml(name)}</td>
+      <td class="beer-icons">${icons}<br><span class="beer-cost">${formatEuro(total)}</span></td>
+      <td><div class="action-buttons">${buttonsHtml}</div></td>
+    </tr>`;
   }
   document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
   document.querySelectorAll('.pay').forEach(btn => { btn.onclick = () => { const name = btn.dataset.namePay; const count = parseInt(btn.dataset.count) || 0; showConfirmPopup(name, count); }; });
@@ -436,7 +440,6 @@ function renderMonthlyChart(historyArray) {
     });
   }
   
-  // Nur positive Werte für das Diagramm anzeigen (kann nicht negativ sein)
   const sortedLabels = Array.from(months.keys()).sort((a,b) => { const [mA,yA]=a.split('/'); const [mB,yB]=b.split('/'); return (parseInt(yA)-parseInt(yB)) || (parseInt(mA)-parseInt(mB)); });
   const chartData = sortedLabels.map(l => { const val = months.get(l) || 0; return val >= 0 ? val : 0; });
   
@@ -574,8 +577,19 @@ function loginAdmin() {
     document.getElementById('adminActions').style.display = 'block';
     document.getElementById('adminPassword').value = '';
     alert("✅ Login erfolgreich!");
-    if (useFirebase && mainDocRef) { getDoc(mainDocRef).then(snap => { if (snap.exists()) { const data = snap.data(); const renderData = {}; names.forEach(n => renderData[n] = data[n] || 0); renderMainTable(renderData); } }); }
-    else { renderLocalData(); }
+    // Tabelle sofort neu rendern, damit -1 Bier Buttons erscheinen
+    if (useFirebase && mainDocRef) { 
+      getDoc(mainDocRef).then(snap => { 
+        if (snap.exists()) { 
+          const data = snap.data(); 
+          const renderData = {}; 
+          names.forEach(n => renderData[n] = data[n] || 0); 
+          renderMainTable(renderData); 
+        } 
+      }); 
+    } else { 
+      renderLocalData(); 
+    }
   } else { alert("❌ Falsches Passwort!"); document.getElementById('adminPassword').value = ''; }
 }
 
@@ -583,18 +597,25 @@ function logoutAdmin() {
   isAdminLoggedIn = false;
   sessionStorage.removeItem('adminAuth');
   document.getElementById('adminActions').style.display = 'none';
-  if (useFirebase && mainDocRef) { getDoc(mainDocRef).then(snap => { if (snap.exists()) { const data = snap.data(); const renderData = {}; names.forEach(n => renderData[n] = data[n] || 0); renderMainTable(renderData); } }); }
-  else { renderLocalData(); }
+  // Tabelle sofort neu rendern, damit -1 Bier Buttons verschwinden
+  if (useFirebase && mainDocRef) { 
+    getDoc(mainDocRef).then(snap => { 
+      if (snap.exists()) { 
+        const data = snap.data(); 
+        const renderData = {}; 
+        names.forEach(n => renderData[n] = data[n] || 0); 
+        renderMainTable(renderData); 
+      } 
+    }); 
+  } else { 
+    renderLocalData(); 
+  }
 }
 
 function checkAdminSession() {
   if (sessionStorage.getItem('adminAuth') === 'true') {
     isAdminLoggedIn = true;
     document.getElementById('adminActions').style.display = 'block';
-    setTimeout(() => {
-      if (useFirebase && mainDocRef) { getDoc(mainDocRef).then(snap => { if (snap.exists()) { const data = snap.data(); const renderData = {}; names.forEach(n => renderData[n] = data[n] || 0); renderMainTable(renderData); } }); }
-      else { renderLocalData(); }
-    }, 100);
   }
 }
 
