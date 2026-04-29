@@ -396,6 +396,8 @@ async function removeBeerFromPerson(person) {
           time: new Date().toISOString() 
         }];
         await setDoc(mainDocRef, current);
+        // Erfolgsmeldung
+        console.log(`${person}: ${currentCount} -> ${currentCount - 1}`);
       } else {
         alert(`${person} hat keine Biere zum Entfernen.`);
       }
@@ -576,15 +578,12 @@ function renderQRTable() {
     qrBody.innerHTML += `<tr><td style="font-weight:bold;">${escapeHtml(name)}</td><td><canvas id="${id}" width="120" height="120"></canvas></td></tr>`;
   });
   
-  // QR-Codes mit Verzögerung generieren
   setTimeout(() => {
     names.forEach(name => {
       const canvas = document.getElementById(`qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`);
       if (canvas) {
         try {
-          QRCode.toCanvas(canvas, `${baseUrl}?add=${encodeURIComponent(name)}`, { width: 110, margin: 1 }, function(error) {
-            if (error) console.error("QR Error:", error);
-          });
+          QRCode.toCanvas(canvas, `${baseUrl}?add=${encodeURIComponent(name)}`, { width: 110, margin: 1 });
         } catch(e) {
           console.error("QR Generation error:", e);
         }
@@ -747,14 +746,6 @@ async function initFirebase() {
         renderMainTable(newData);
         updateHistoryUI(snapData.history || []);
         renderMonthlyChart(snapData.history || []);
-        
-        // Aktualisiere die data-count Attribute der Pay-Buttons
-        document.querySelectorAll('.pay').forEach(btn => {
-          const name = btn.dataset.namePay;
-          if (name && newData[name] !== undefined) {
-            btn.dataset.count = newData[name];
-          }
-        });
       }
     });
     
@@ -821,6 +812,21 @@ function checkAdminSession() {
   if (sessionStorage.getItem('adminAuth') === 'true') {
     isAdminLoggedIn = true;
     document.getElementById('adminActions').style.display = 'block';
+    // Tabelle aktualisieren, damit -1 Bier Buttons angezeigt werden
+    setTimeout(() => {
+      if (useFirebase && mainDocRef) {
+        getDoc(mainDocRef).then(snap => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const renderData = {};
+            names.forEach(n => renderData[n] = data[n] || 0);
+            renderMainTable(renderData);
+          }
+        });
+      } else {
+        renderLocalData();
+      }
+    }, 100);
   }
 }
 
@@ -866,4 +872,4 @@ async function start() {
 start();
 </script>
 </body>
-</html>
+  </html>
