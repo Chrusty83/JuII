@@ -52,8 +52,7 @@
     .beer-icons { font-size: 1.4rem; letter-spacing: 2px; }
     .beer-cost { font-size: 13px; color: #aaa; margin-top: 4px; }
     
-    /* Alle Buttons mit einheitlichem Radius */
-    button, .add, .pay, .admin-login-btn, .reset-btn, .clear-btn, .logout-btn, .popup-confirm, .popup-cancel {
+    button, .add, .remove, .pay, .admin-login-btn, .reset-btn, .clear-btn, .logout-btn, .popup-confirm, .popup-cancel {
       padding: 8px 16px;
       border: none;
       border-radius: 40px !important;
@@ -67,6 +66,7 @@
     button:hover { opacity: 0.85; }
     
     .add { background: #0a84ff; color: white; }
+    .remove { background: #ff6b35; color: white; }
     .pay { background: #2e7d64; color: white; }
     .admin-login-btn { background: #5a5fcf; color: white; }
     .reset-btn { background: #c44536; color: white; }
@@ -82,13 +82,6 @@
       align-items: center;
     }
     
-    .qr-grid canvas {
-      background: white;
-      border-radius: 12px;
-      padding: 6px;
-      width: 100px !important;
-      height: 100px !important;
-    }
     #chartContainer {
       background: #1a1a28;
       border-radius: 28px;
@@ -162,7 +155,6 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     
-    /* Bestätigungs-Popup */
     .confirm-popup {
       display: none;
       position: fixed;
@@ -198,6 +190,45 @@
       justify-content: center;
       margin-top: 20px;
     }
+    
+    .total-beer-badge {
+      background: #2e7d64;
+      color: white;
+      padding: 8px 20px;
+      border-radius: 60px;
+      display: inline-block;
+      margin-bottom: 15px;
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+    
+    .toast-popup {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #2e7d64;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 60px;
+      font-weight: bold;
+      font-size: 1rem;
+      z-index: 1002;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      animation: fadeInUp 0.3s ease-out;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
   </style>
 </head>
 <body>
@@ -205,10 +236,12 @@
 <h1>JUII BIERDECKEL</h1>
 
 <div class="glass-card">
-  <h2>📋 Strichliste</h2>
+  <div id="totalBeerDisplay" class="total-beer-badge">🍺 Gesamt: 0 Biere</div>
   <div style="overflow-x: auto;">
     <table>
-      <thead><tr><th>Name</th><th>🍺 Anzahl / Kosten</th><th>Aktionen</th><tr></thead>
+      <thead>
+        <tr><th>Name</th><th>🍺 Anzahl / Kosten</th><th>Aktionen</th></tr>
+      </thead>
       <tbody id="tableBody">
         <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></tr>
       </tbody>
@@ -221,31 +254,9 @@
   <canvas id="beerChart" width="800" height="350"></canvas>
   
   <div id="monthStats" class="stats-container">
-    <div class="stat-card">
-      <div class="stat-month" id="currentMonthLabel">-</div>
-      <div class="stat-count" id="currentMonthCount">0</div>
-      <div class="stat-label">🍺 Biere</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-month" id="lastMonthLabel">-</div>
-      <div class="stat-count" id="lastMonthCount">0</div>
-      <div class="stat-label">🍺 Biere</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-month" id="twoMonthsAgoLabel">-</div>
-      <div class="stat-count" id="twoMonthsAgoCount">0</div>
-      <div class="stat-label">🍺 Biere</div>
-    </div>
-  </div>
-</div>
-
-<div class="glass-card qr-grid">
-  <h2>📱 QR-Codes</h2>
-  <p style="font-size:14px;">Scan zum Bier hinzufügen</p>
-  <div style="overflow-x: auto;">
-    </table>
-      <tbody id="qrBody"></tbody>
-    </table>
+    <div class="stat-card"><div class="stat-month" id="currentMonthLabel">-</div><div class="stat-count" id="currentMonthCount">0</div><div class="stat-label">🍺 Biere</div></div>
+    <div class="stat-card"><div class="stat-month" id="lastMonthLabel">-</div><div class="stat-count" id="lastMonthCount">0</div><div class="stat-label">🍺 Biere</div></div>
+    <div class="stat-card"><div class="stat-month" id="twoMonthsAgoLabel">-</div><div class="stat-count" id="twoMonthsAgoCount">0</div><div class="stat-label">🍺 Biere</div></div>
   </div>
 </div>
 
@@ -264,7 +275,6 @@
   </div>
 </div>
 
-<!-- Bestätigungs-Popup für Zahlung -->
 <div id="confirmPopup" class="confirm-popup">
   <div class="confirm-popup-box">
     <p>🍺 <strong id="confirmName"></strong>, hast du bezahlt?</p>
@@ -276,15 +286,10 @@
   </div>
 </div>
 
-<footer>
-  <span id="connectionStatus"></span>
-</footer>
+<footer><span id="connectionStatus"></span></footer>
 
 <script>
-// ==================== PREIS ====================
 const BEER_PRICE = 2.00;
-
-// ==================== FIREBASE KONFIGURATION ====================
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
   authDomain: "juii-strichliste.firebaseapp.com",
@@ -293,8 +298,6 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "8081599971",
   appId: "1:8081599971:web:6cc277281b040d995304d6"
 };
-
-// ==================== ADMIN PASSWORT ====================
 const ADMIN_PASSWORD = "admin123";
 
 let isAdminLoggedIn = false;
@@ -308,45 +311,52 @@ let pendingPayAmount = 0;
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 const STORAGE_KEY = "juii_bierdeckel_data";
 
-// ==================== HILFSFUNKTIONEN ====================
+function getTotalBeerCount(data) {
+  if (!data) return 0;
+  let total = 0;
+  for (let name of names) {
+    total += data[name] || 0;
+  }
+  return total;
+}
+
+function updateTotalDisplay(data) {
+  const totalDiv = document.getElementById('totalBeerDisplay');
+  if (totalDiv) {
+    const total = getTotalBeerCount(data);
+    totalDiv.innerHTML = `🍺 Gesamt: ${total} ${total === 1 ? 'Bier' : 'Biere'}`;
+  }
+}
+
+function showToast(message, isError = false) {
+  const toast = document.createElement('div');
+  toast.className = 'toast-popup';
+  toast.style.background = isError ? '#c44536' : '#2e7d64';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 2500);
+}
+
 function escapeHtml(str) { return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
+function formatEuro(amount) { return amount === Math.floor(amount) ? `${Math.floor(amount)} €` : `${amount.toFixed(2)} €`; }
+function updateConnectionStatus(msg) { const div = document.getElementById('connectionStatus'); if (div) div.innerHTML = msg; }
 
-function formatEuro(amount) {
-  if (amount === Math.floor(amount)) {
-    return `${Math.floor(amount)} €`;
-  } else {
-    return `${amount.toFixed(2)} €`;
-  }
-}
-
-function updateConnectionStatus(msg) { 
-  const statusDiv = document.getElementById('connectionStatus');
-  if (statusDiv) statusDiv.innerHTML = msg;
-}
-
-// ==================== BESTÄTIGUNGS-POPUP ====================
 function showConfirmPopup(name, count) {
-  if (count === 0) {
-    alert("Keine offenen Biere zum Bezahlen.");
-    return;
-  }
+  if (count === 0) { alert("Keine offenen Biere zum Bezahlen."); return; }
   pendingPayPerson = name;
   pendingPayAmount = count * BEER_PRICE;
   document.getElementById('confirmName').innerText = name;
   document.getElementById('confirmAmount').innerHTML = `${count} 🍺 = ${formatEuro(pendingPayAmount)}`;
   document.getElementById('confirmPopup').style.display = 'flex';
 }
+function closeConfirmPopup() { document.getElementById('confirmPopup').style.display = 'none'; pendingPayPerson = null; }
 
-function closeConfirmPopup() {
-  document.getElementById('confirmPopup').style.display = 'none';
-  pendingPayPerson = null;
-  pendingPayAmount = 0;
-}
-
-// ==================== ZAHLEN (BIERSTAND LÖSCHEN) ====================
 async function resetBeerCountForPerson(person) {
   if (!person) return;
-  
   if (useFirebase && mainDocRef) {
     const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
     const snap = await getDoc(mainDocRef);
@@ -354,10 +364,7 @@ async function resetBeerCountForPerson(person) {
       let current = snap.data();
       const oldCount = current[person] || 0;
       current[person] = 0;
-      current.history = [...(current.history || []), { 
-        name: `${person} (bezahlt: ${oldCount} Bier = ${formatEuro(oldCount * BEER_PRICE)})`, 
-        time: new Date().toISOString() 
-      }];
+      current.history = [...(current.history || []), { name: `${person} (bezahlt: ${oldCount} Bier = ${formatEuro(oldCount * BEER_PRICE)})`, time: new Date().toISOString() }];
       await setDoc(mainDocRef, current);
     }
   } else {
@@ -366,20 +373,51 @@ async function resetBeerCountForPerson(person) {
     const oldCount = data[person] || 0;
     data[person] = 0;
     if (!data.history) data.history = [];
-    data.history.push({ 
-      name: `${person} (bezahlt: ${oldCount} Bier = ${formatEuro(oldCount * BEER_PRICE)})`, 
-      time: new Date().toISOString() 
-    });
+    data.history.push({ name: `${person} (bezahlt: ${oldCount} Bier = ${formatEuro(oldCount * BEER_PRICE)})`, time: new Date().toISOString() });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    renderLocalData();
+    refreshUI();
+  }
+  closeConfirmPopup();
+}
+
+async function removeBeerFromPerson(person) {
+  if (!isAdminLoggedIn) { showToast("Keine Berechtigung! Nur für Admin.", true); return; }
+  
+  if (useFirebase && mainDocRef) {
+    const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const snap = await getDoc(mainDocRef);
+    if (snap.exists()) {
+      let current = snap.data();
+      const currentCount = current[person] || 0;
+      if (currentCount > 0) {
+        current[person] = currentCount - 1;
+        current.history = [...(current.history || []), { name: `${person} (1 Bier entfernt)`, time: new Date().toISOString() }];
+        await setDoc(mainDocRef, current);
+        const newTotal = getTotalBeerCount(current);
+        updateTotalDisplay(current);
+        showToast(`🍺 Ein Bier von ${person} wurde entfernt! (Neuer Stand: ${current[person]} Bier)`);
+      } else {
+        showToast(`${person} hat keine Biere zum Entfernen.`, true);
+      }
+    }
+  } else {
+    let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"history":[]}');
+    names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
+    const currentCount = data[person] || 0;
+    if (currentCount > 0) {
+      data[person] = currentCount - 1;
+      if (!data.history) data.history = [];
+      data.history.push({ name: `${person} (1 Bier entfernt)`, time: new Date().toISOString() });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      refreshUI();
+      showToast(`🍺 Ein Bier von ${person} wurde entfernt! (Neuer Stand: ${data[person]} Bier)`);
+    } else {
+      showToast(`${person} hat keine Biere zum Entfernen.`, true);
+    }
   }
 }
 
-// ==================== MONATSÜBERSICHT ====================
-function getMonthName(year, month) {
-  const date = new Date(year, month - 1, 1);
-  return date.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
-}
+function getMonthName(year, month) { return new Date(year, month - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' }); }
 
 function updateMonthStats(historyArray) {
   const now = new Date();
@@ -392,18 +430,12 @@ function updateMonthStats(historyArray) {
     { year: currentMonth <= 2 ? currentYear - 1 : currentYear, month: currentMonth === 1 ? 11 : (currentMonth === 2 ? 12 : currentMonth - 2), elementId: "twoMonthsAgoCount", labelId: "twoMonthsAgoLabel" }
   ];
   
-  targets.forEach((target) => {
-    const labelElem = document.getElementById(target.labelId);
-    if (labelElem) {
-      labelElem.innerText = getMonthName(target.year, target.month);
-    }
-  });
+  targets.forEach(t => { const el = document.getElementById(t.labelId); if (el) el.innerText = getMonthName(t.year, t.month); });
   
   const counts = [0, 0, 0];
-  
   if (historyArray && Array.isArray(historyArray)) {
     historyArray.forEach(entry => {
-      if (entry?.time && entry.name && !entry.name.includes("bezahlt")) {
+      if (entry?.time && entry.name && !entry.name.includes("bezahlt") && !entry.name.includes("entfernt")) {
         const date = new Date(entry.time);
         if (!isNaN(date.getTime())) {
           const entryYear = date.getFullYear();
@@ -424,73 +456,58 @@ function updateMonthStats(historyArray) {
   document.getElementById('twoMonthsAgoCount').innerText = counts[2];
 }
 
-// ==================== UI RENDER ====================
 function renderMainTable(data) {
   const tbody = document.getElementById('tableBody');
   if (!tbody) return;
   tbody.innerHTML = '';
+  
+  updateTotalDisplay(data);
+  
   for (let name of names) {
     const count = data[name] || 0;
     const total = count * BEER_PRICE;
     let icons = count > 0 ? "🍺".repeat(Math.min(count, 20)) + (count > 20 ? ` +${count-20}` : "") : "—";
-    tbody.innerHTML += `
-      <tr>
-        <td style="font-weight:500;">${escapeHtml(name)}</td>
-        <td class="beer-icons">${icons}<br><span class="beer-cost">${formatEuro(total)}</span></td>
-        <td>
-          <div class="action-buttons">
-            <button class="add" data-name="${escapeHtml(name)}">+1 Bier</button>
-            <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">bezahlt</button>
-          </div>
-        </td>
-      </tr>
-    `;
+    let buttonsHtml = `<button class="add" data-name="${escapeHtml(name)}">+1 Bier</button>
+                       <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">bezahlt</button>`;
+    
+    if (isAdminLoggedIn) {
+      buttonsHtml += `<button class="remove" data-name-remove="${escapeHtml(name)}">-1 Bier</button>`;
+    }
+    
+    tbody.innerHTML += `<tr>
+      <td style="font-weight:500;">${escapeHtml(name)}</td>
+      <td class="beer-icons">${icons}<br><span class="beer-cost">${formatEuro(total)}</span></td>
+      <td><div class="action-buttons">${buttonsHtml}</div></td>
+    </tr>`;
   }
+  
   document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
-  document.querySelectorAll('.pay').forEach(btn => { 
-    btn.onclick = () => {
-      const name = btn.dataset.namePay;
-      const count = parseInt(btn.dataset.count) || 0;
-      showConfirmPopup(name, count);
-    };
-  });
+  document.querySelectorAll('.pay').forEach(btn => { btn.onclick = () => { const name = btn.dataset.namePay; const count = parseInt(btn.dataset.count) || 0; showConfirmPopup(name, count); }; });
+  document.querySelectorAll('.remove').forEach(btn => { btn.onclick = () => removeBeerFromPerson(btn.dataset.nameRemove); });
 }
 
 function renderMonthlyChart(historyArray) {
   const months = new Map();
-  (historyArray || []).forEach(e => {
-    if (e?.time && e.name && !e.name.includes("bezahlt")) { 
-      const d = new Date(e.time); 
-      if (!isNaN(d)) {
-        const key = `${d.getMonth()+1}/${d.getFullYear()}`;
-        months.set(key, (months.get(key) || 0) + 1);
+  if (historyArray && Array.isArray(historyArray)) {
+    historyArray.forEach(e => {
+      if (e?.time && e.name && !e.name.includes("bezahlt") && !e.name.includes("entfernt")) {
+        const d = new Date(e.time);
+        if (!isNaN(d)) {
+          const key = `${d.getMonth()+1}/${d.getFullYear()}`;
+          months.set(key, (months.get(key) || 0) + 1);
+        }
       }
-    }
-  });
+    });
+  }
   
-  const sortedLabels = Array.from(months.keys()).sort((a,b) => {
-    const [mA, yA] = a.split('/');
-    const [mB, yB] = b.split('/');
-    return (parseInt(yA) - parseInt(yB)) || (parseInt(mA) - parseInt(mB));
-  });
+  const sortedLabels = Array.from(months.keys()).sort((a,b) => { const [mA,yA]=a.split('/'); const [mB,yB]=b.split('/'); return (parseInt(yA)-parseInt(yB)) || (parseInt(mA)-parseInt(mB)); });
+  const chartData = sortedLabels.map(l => months.get(l) || 0);
   
   const ctx = document.getElementById('beerChart').getContext('2d');
   if (beerChart) beerChart.destroy();
-  beerChart = new Chart(ctx, { 
-    type: 'bar', 
-    data: { 
-      labels: sortedLabels, 
-      datasets: [{ label: '🍺 Biere/Monat', data: sortedLabels.map(l => months.get(l) || 0), backgroundColor: '#f9b43a', borderRadius: 12 }] 
-    }, 
-    options: { 
-      responsive: true, 
-      plugins: { legend: { labels: { color: '#fff' } } }, 
-      scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966' } } } 
-    } 
-  });
+  beerChart = new Chart(ctx, { type: 'bar', data: { labels: sortedLabels, datasets: [{ label: '🍺 Biere/Monat', data: chartData, backgroundColor: '#f9b43a', borderRadius: 12 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#fff' } } }, scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966' } } } } });
   
-  // Nur echte Bier-Einträge für Monatsstatistik (ohne "bezahlt")
-  const realHistory = (historyArray || []).filter(e => e && e.name && !e.name.includes("bezahlt"));
+  const realHistory = (historyArray || []).filter(e => e && e.name && !e.name.includes("bezahlt") && !e.name.includes("entfernt"));
   updateMonthStats(realHistory);
 }
 
@@ -500,56 +517,41 @@ function updateHistoryUI(historyArray) {
   ul.innerHTML = '';
   if (!historyArray?.length) { ul.innerHTML = '<li>📭 Keine Einträge</li>'; return; }
   [...historyArray].reverse().forEach(e => { 
-    const displayName = e.name || "Unbekannt";
-    ul.innerHTML += `<li>🍺 ${escapeHtml(displayName)} – ${new Date(e.time).toLocaleString('de-DE')}</li>`; 
+    ul.innerHTML += `<li>🍺 ${escapeHtml(e.name)} – ${new Date(e.time).toLocaleString('de-DE')}</li>`; 
   });
 }
 
-function renderQRTable() {
-  const qrBody = document.getElementById('qrBody');
-  if (!qrBody) return;
-  qrBody.innerHTML = '';
-  const baseUrl = window.location.origin + window.location.pathname;
-  names.forEach(name => {
-    const id = `qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`;
-    qrBody.innerHTML += `<tr><td style="font-weight:bold;">${escapeHtml(name)}</td><td><canvas id="${id}" width="120" height="120"></canvas></td></tr>`;
-  });
-  
-  // QR-Codes mit Verzögerung generieren
-  setTimeout(() => {
-    names.forEach(name => {
-      const canvas = document.getElementById(`qr-${name.replace(/[^a-zA-Z0-9]/g, "_")}`);
-      if (canvas) {
-        try {
-          QRCode.toCanvas(canvas, `${baseUrl}?add=${encodeURIComponent(name)}`, { width: 110, margin: 1 }, function(error) {
-            if (error) console.error("QR Error:", error);
-          });
-        } catch(e) {
-          console.error("QR Generation error:", e);
+function loadLocalData() { const stored = localStorage.getItem(STORAGE_KEY); return stored ? JSON.parse(stored) : null; }
+function saveLocalData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+function refreshUI() {
+  if (useFirebase && mainDocRef) {
+    import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js").then(({ getDoc }) => {
+      getDoc(mainDocRef).then(snap => {
+        if (snap.exists()) {
+          const data = snap.data();
+          const renderData = {};
+          names.forEach(n => renderData[n] = data[n] || 0);
+          renderMainTable(renderData);
+          updateHistoryUI(data.history || []);
+          renderMonthlyChart(data.history || []);
         }
-      }
+      });
     });
-  }, 200);
-}
-
-// ==================== LOCALSTORAGE ====================
-function loadLocalData() {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored ? JSON.parse(stored) : null;
-}
-
-function saveLocalData(data) { 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); 
+  } else {
+    let data = loadLocalData();
+    if (!data) { const empty = {}; names.forEach(n => empty[n] = 0); data = { ...empty, history: [] }; saveLocalData(data); }
+    names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
+    if (!data.history) data.history = [];
+    renderMainTable(data);
+    updateHistoryUI(data.history);
+    renderMonthlyChart(data.history);
+  }
 }
 
 function renderLocalData() {
   let data = loadLocalData();
-  if (!data) { 
-    const empty = {}; 
-    names.forEach(n => empty[n] = 0); 
-    data = { ...empty, history: [] }; 
-    saveLocalData(data); 
-  }
+  if (!data) { const empty = {}; names.forEach(n => empty[n] = 0); data = { ...empty, history: [] }; saveLocalData(data); }
   names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
   if (!data.history) data.history = [];
   renderMainTable(data);
@@ -560,51 +562,40 @@ function renderLocalData() {
 
 async function addBeerLocal(name) {
   let data = loadLocalData();
-  if (!data) {
-    data = { history: [] };
-    names.forEach(n => data[n] = 0);
-  }
-  data[name] = (data[name] || 0) + 1;
+  if (!data) { data = { history: [] }; names.forEach(n => data[n] = 0); }
+  const oldCount = data[name] || 0;
+  data[name] = oldCount + 1;
   data.history.push({ name, time: new Date().toISOString() });
   saveLocalData(data);
-  renderLocalData();
+  refreshUI();
+  showToast(`🍺 ${name} +1 Bier (neuer Stand: ${data[name]} Bier)`);
 }
 
 async function resetLocal() {
   if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
   let data = loadLocalData();
-  if (data) { 
-    names.forEach(n => data[n] = 0); 
-    saveLocalData(data); 
-    renderLocalData(); 
-    alert("✅ Alle Biere zurückgesetzt"); 
-    return true; 
-  }
+  if (data) { names.forEach(n => data[n] = 0); saveLocalData(data); refreshUI(); alert("✅ Alle Biere zurückgesetzt"); return true; }
   return false;
 }
 
 async function clearHistoryLocal() {
   if (!isAdminLoggedIn) { alert("Keine Berechtigung!"); return false; }
   let data = loadLocalData();
-  if (data) { 
-    data.history = []; 
-    saveLocalData(data); 
-    renderLocalData(); 
-    alert("✅ Verlauf gelöscht"); 
-    return true; 
-  }
+  if (data) { data.history = []; saveLocalData(data); refreshUI(); alert("✅ Verlauf gelöscht"); return true; }
   return false;
 }
 
-// ==================== FIREBASE ====================
 async function addBeerFirebase(name) {
   if (!mainDocRef) return;
   const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
   const snap = await getDoc(mainDocRef);
   let current = snap.exists() ? snap.data() : {};
-  current[name] = (current[name] || 0) + 1;
+  const oldCount = current[name] || 0;
+  current[name] = oldCount + 1;
   current.history = [...(current.history || []), { name, time: new Date().toISOString() }];
   await setDoc(mainDocRef, current);
+  refreshUI();
+  showToast(`🍺 ${name}: +1 Bier (neuer Stand: ${current[name]} Bier)`);
 }
 
 async function resetFirebase() {
@@ -612,13 +603,7 @@ async function resetFirebase() {
   if (!mainDocRef) return false;
   const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
   const snap = await getDoc(mainDocRef);
-  if (snap.exists()) {
-    let current = snap.data();
-    names.forEach(n => current[n] = 0);
-    await setDoc(mainDocRef, current);
-    alert("✅ Alle Biere zurückgesetzt");
-    return true;
-  }
+  if (snap.exists()) { let current = snap.data(); names.forEach(n => current[n] = 0); await setDoc(mainDocRef, current); alert("✅ Alle Biere zurückgesetzt"); return true; }
   return false;
 }
 
@@ -627,57 +612,28 @@ async function clearHistoryFirebase() {
   if (!mainDocRef) return false;
   const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
   const snap = await getDoc(mainDocRef);
-  if (snap.exists()) {
-    let current = snap.data();
-    current.history = [];
-    await setDoc(mainDocRef, current);
-    alert("✅ Verlauf gelöscht");
-    return true;
-  }
+  if (snap.exists()) { let current = snap.data(); current.history = []; await setDoc(mainDocRef, current); alert("✅ Verlauf gelöscht"); return true; }
   return false;
 }
 
-// ==================== DISPATCHER ====================
 async function addBeer(name) {
-  if (useFirebase && mainDocRef) {
-    await addBeerFirebase(name);
-  } else {
-    await addBeerLocal(name);
-  }
+  if (useFirebase && mainDocRef) await addBeerFirebase(name);
+  else await addBeerLocal(name);
 }
 
-// ==================== FIREBASE INIT ====================
 async function initFirebase() {
   updateConnectionStatus('📡 Verbinde mit Firebase...');
-  
   try {
     const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js");
     const { getFirestore, doc, getDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-    
     const app = initializeApp(FIREBASE_CONFIG);
     const db = getFirestore(app);
     mainDocRef = doc(db, "strichliste", "juii_main");
-    
     const testSnap = await getDoc(mainDocRef);
-    
-    if (!testSnap.exists()) {
-      const emptyData = { history: [] };
-      names.forEach(n => emptyData[n] = 0);
-      renderMainTable(emptyData);
-      updateHistoryUI([]);
-      renderMonthlyChart([]);
-    } else {
-      const data = testSnap.data();
-      const renderData = {};
-      names.forEach(n => renderData[n] = data[n] || 0);
-      renderMainTable(renderData);
-      updateHistoryUI(data.history || []);
-      renderMonthlyChart(data.history || []);
-    }
-    
+    if (!testSnap.exists()) { const emptyData = { history: [] }; names.forEach(n => emptyData[n] = 0); renderMainTable(emptyData); updateHistoryUI([]); renderMonthlyChart([]); }
+    else { const data = testSnap.data(); const renderData = {}; names.forEach(n => renderData[n] = data[n] || 0); renderMainTable(renderData); updateHistoryUI(data.history || []); renderMonthlyChart(data.history || []); }
     updateConnectionStatus('✅ Firebase verbunden (Live-Synchronisation)');
     useFirebase = true;
-    
     unsubscribe = onSnapshot(mainDocRef, (snapshot) => {
       if (snapshot.exists()) {
         const snapData = snapshot.data();
@@ -686,48 +642,30 @@ async function initFirebase() {
         renderMainTable(newData);
         updateHistoryUI(snapData.history || []);
         renderMonthlyChart(snapData.history || []);
-        
-        // Aktualisiere die data-count Attribute der Pay-Buttons
-        document.querySelectorAll('.pay').forEach(btn => {
-          const name = btn.dataset.namePay;
-          if (name && newData[name] !== undefined) {
-            btn.dataset.count = newData[name];
-          }
-        });
       }
     });
-    
     return true;
-  } catch (err) {
-    console.error("Firebase Fehler:", err);
-    updateConnectionStatus('⚠️ Firebase nicht erreichbar – Verwende lokalen Speicher');
-    renderLocalData();
-    useFirebase = false;
-    return false;
-  }
+  } catch (err) { console.error("Firebase Fehler:", err); updateConnectionStatus('⚠️ Firebase nicht erreichbar – Verwende lokalen Speicher'); renderLocalData(); useFirebase = false; return false; }
 }
 
-// ==================== ADMIN LOGIN ====================
 function loginAdmin() {
-  const passwordInput = document.getElementById('adminPassword');
-  const password = passwordInput.value;
-  
-  if (password === ADMIN_PASSWORD) {
+  const pwd = document.getElementById('adminPassword').value;
+  if (pwd === ADMIN_PASSWORD) {
     isAdminLoggedIn = true;
     sessionStorage.setItem('adminAuth', 'true');
     document.getElementById('adminActions').style.display = 'block';
-    passwordInput.value = '';
-    alert("✅ Login erfolgreich!");
-  } else {
-    alert("❌ Falsches Passwort!");
-    passwordInput.value = '';
-  }
+    document.getElementById('adminPassword').value = '';
+    showToast("✅ Admin-Login erfolgreich!");
+    refreshUI();
+  } else { showToast("❌ Falsches Passwort!", true); document.getElementById('adminPassword').value = ''; }
 }
 
 function logoutAdmin() {
   isAdminLoggedIn = false;
   sessionStorage.removeItem('adminAuth');
   document.getElementById('adminActions').style.display = 'none';
+  refreshUI();
+  showToast("👋 Admin-Logout");
 }
 
 function checkAdminSession() {
@@ -735,45 +673,25 @@ function checkAdminSession() {
     isAdminLoggedIn = true;
     document.getElementById('adminActions').style.display = 'block';
   }
+  refreshUI();
 }
 
-// ==================== INIT ====================
 function handleUrlParam() {
   const params = new URLSearchParams(window.location.search);
   const add = params.get('add');
-  if (add && names.includes(add)) {
-    setTimeout(() => addBeer(add), 800);
-    window.history.replaceState({}, "", window.location.pathname);
-  }
+  if (add && names.includes(add)) { setTimeout(() => addBeer(add), 800); window.history.replaceState({}, "", window.location.pathname); }
 }
 
 async function start() {
   checkAdminSession();
-  renderQRTable();
   await initFirebase();
   handleUrlParam();
-  
   document.getElementById('loginBtn').onclick = loginAdmin;
   document.getElementById('logoutBtn').onclick = logoutAdmin;
-  document.getElementById('resetAllBtn').onclick = async () => { 
-    if (useFirebase) await resetFirebase(); 
-    else await resetLocal(); 
-  };
-  document.getElementById('clearHistoryBtn').onclick = async () => { 
-    if (useFirebase) await clearHistoryFirebase(); 
-    else await clearHistoryLocal(); 
-  };
-  
-  // Bestätigungs-Popup Buttons
-  document.getElementById('confirmYesBtn').onclick = async () => {
-    if (pendingPayPerson) {
-      await resetBeerCountForPerson(pendingPayPerson);
-    }
-    closeConfirmPopup();
-  };
-  document.getElementById('confirmNoBtn').onclick = () => {
-    closeConfirmPopup();
-  };
+  document.getElementById('resetAllBtn').onclick = async () => { if (useFirebase) await resetFirebase(); else await resetLocal(); };
+  document.getElementById('clearHistoryBtn').onclick = async () => { if (useFirebase) await clearHistoryFirebase(); else await clearHistoryLocal(); };
+  document.getElementById('confirmYesBtn').onclick = async () => { if (pendingPayPerson) await resetBeerCountForPerson(pendingPayPerson); closeConfirmPopup(); };
+  document.getElementById('confirmNoBtn').onclick = () => closeConfirmPopup();
 }
 
 start();
