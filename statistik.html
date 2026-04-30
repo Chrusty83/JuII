@@ -220,10 +220,17 @@
       background: #2a2a3a;
       transform: translateX(5px);
     }
+    .history-item.payment {
+      border-left-color: #2e7d64;
+      opacity: 0.8;
+    }
     .history-name {
       font-weight: bold;
       font-size: 1rem;
       color: #ffd966;
+    }
+    .history-name.payment {
+      color: #aaa;
     }
     .history-time {
       font-size: 0.8rem;
@@ -324,6 +331,55 @@ function escapeHtml(str) {
   return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
 }
 
+// Prüft ob ein Eintrag ein Bezahlvorgang ist (darf nicht in Statistik/Ranking)
+function isPaymentEntry(entry) {
+  if (!entry || !entry.name) return false;
+  return entry.name.includes('bezahlt') || entry.name.includes('Bezahlung') || entry.name.includes('entfernt');
+}
+
+// Extrahieren des Namens aus einem Eintrag (für Bezahlvorgänge)
+function extractRealName(entry) {
+  if (!entry || !entry.name) return null;
+  // Bei normalen Biereinträgen: name ist der Personenname
+  if (!entry.name.includes('bezahlt') && !entry.name.includes('Bezahlung') && !entry.name.includes('entfernt')) {
+    return entry.name;
+  }
+  return null;
+}
+
+// Filtert nur die Bier-Trink-Einträge (keine Bezahlungen)
+function filterBeerEntries(historyArray) {
+  if (!historyArray) return [];
+  return historyArray.filter(entry => {
+    if (!entry || !entry.name) return false;
+    // Nur Einträge ohne "bezahlt" und ohne "entfernt"
+    return !entry.name.includes('bezahlt') && !entry.name.includes('entfernt') && !entry.name.includes('Bezahlung');
+  });
+}
+
+function getAllTimeBeerCount(historyArray) {
+  const beerEntries = filterBeerEntries(historyArray);
+  return beerEntries.length || 0;
+}
+
+function getCurrentMonthCount(historyArray) {
+  const beerEntries = filterBeerEntries(historyArray);
+  if (!beerEntries) return 0;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  return beerEntries.filter(entry => {
+    if (!entry?.time) return false;
+    const date = new Date(entry.time);
+    return !isNaN(date) && date.getFullYear() === currentYear && date.getMonth() + 1 === currentMonth;
+  }).length;
+}
+
+function updateTotalDisplay(historyArray) {
+  document.getElementById('totalBeerDisplay').innerHTML = `🍺 Aktueller Monat: ${getCurrentMonthCount(historyArray)} Biere`;
+  document.getElementById('totalAllTimeDisplay').innerHTML = `📊 Alle Zeiten: ${getAllTimeBeerCount(historyArray)} Biere`;
+}
+
 // Korrekte ISO-8601 Kalenderwoche für Deutschland (Montag bis Sonntag)
 function getWeekNumber(date) {
   const d = new Date(date);
@@ -357,34 +413,15 @@ function getLast8Weeks() {
   return weeks;
 }
 
-function getAllTimeBeerCount(historyArray) {
-  return historyArray?.length || 0;
-}
-
-function getCurrentMonthCount(historyArray) {
-  if (!historyArray) return 0;
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  return historyArray.filter(entry => {
-    if (!entry?.time) return false;
-    const date = new Date(entry.time);
-    return !isNaN(date) && date.getFullYear() === currentYear && date.getMonth() + 1 === currentMonth;
-  }).length;
-}
-
-function updateTotalDisplay(historyArray) {
-  document.getElementById('totalBeerDisplay').innerHTML = `🍺 Aktueller Monat: ${getCurrentMonthCount(historyArray)} Biere`;
-  document.getElementById('totalAllTimeDisplay').innerHTML = `📊 Alle Zeiten: ${getAllTimeBeerCount(historyArray)} Biere`;
-}
-
 function getWeeklyData(historyArray, weeks) {
   const consumption = new Array(weeks.length).fill(0);
   const perPerson = weeks.map(() => ({}));
   
-  if (!historyArray) return { consumption, perPerson };
+  // Nur Bier-Einträge verwenden (keine Bezahlungen)
+  const beerEntries = filterBeerEntries(historyArray);
+  if (!beerEntries) return { consumption, perPerson };
   
-  historyArray.forEach(entry => {
+  beerEntries.forEach(entry => {
     if (!entry?.time || !entry?.name) return;
     const date = new Date(entry.time);
     if (isNaN(date)) return;
@@ -403,7 +440,7 @@ function getWeeklyData(historyArray, weeks) {
   return { consumption, perPerson };
 }
 
-// Verlauf anzeigen
+// Verlauf anzeigen (mit Markierung für Bezahlvorgänge)
 function renderHistory(historyArray) {
   const container = document.getElementById('historyList');
   if (!container) return;
@@ -426,10 +463,14 @@ function renderHistory(historyArray) {
       minute: '2-digit'
     });
     
+    const isPayment = isPaymentEntry(entry);
+    const displayName = entry.name;
+    const beerIcon = isPayment ? '💰' : '🍺';
+    
     return `
-      <div class="history-item">
-        <span class="history-beer-icon">🍺</span>
-        <span class="history-name">${escapeHtml(entry.name)}</span>
+      <div class="history-item ${isPayment ? 'payment' : ''}">
+        <span class="history-beer-icon">${beerIcon}</span>
+        <span class="history-name ${isPayment ? 'payment' : ''}">${escapeHtml(displayName)}</span>
         <span class="history-time">${formattedTime}</span>
       </div>
     `;
@@ -519,8 +560,9 @@ function renderWeeklyChart(historyArray) {
 
 function renderMonthlyChart(historyArray) {
   const months = new Map();
-  if (historyArray) {
-    historyArray.forEach(entry => {
+  const beerEntries = filterBeerEntries(historyArray);
+  if (beerEntries) {
+    beerEntries.forEach(entry => {
       if (entry?.time) {
         const d = new Date(entry.time);
         if (!isNaN(d)) {
@@ -566,8 +608,8 @@ function renderMonthlyChart(historyArray) {
   });
   
   const counts = [0,0,0];
-  if (historyArray) {
-    historyArray.forEach(entry => {
+  if (beerEntries) {
+    beerEntries.forEach(entry => {
       if (entry?.time) {
         const date = new Date(entry.time);
         if (!isNaN(date)) {
