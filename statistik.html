@@ -355,6 +355,7 @@ function getWeekNumber(date) {
 }
 
 function getWeekRange(year, week) {
+  // Berechnet den Montag der gegebenen Woche
   const simple = new Date(year, 0, 1 + (week - 1) * 7);
   const dayOfWeek = simple.getDay();
   const monday = new Date(simple);
@@ -369,68 +370,27 @@ function getWeekRange(year, week) {
   return `${formatDate(monday)} - ${formatDate(sunday)}`;
 }
 
-// ==================== MONATSÜBERSICHT ====================
-function getMonthName(year, month) {
-  return new Date(year, month - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' });
-}
-
-function updateMonthStats(historyArray) {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  
-  const targets = [
-    { year: currentYear, month: currentMonth, elementId: "currentMonthCount", labelId: "currentMonthLabel" },
-    { year: currentMonth === 1 ? currentYear - 1 : currentYear, month: currentMonth === 1 ? 12 : currentMonth - 1, elementId: "lastMonthCount", labelId: "lastMonthLabel" },
-    { year: currentMonth <= 2 ? currentYear - 1 : currentYear, month: currentMonth === 1 ? 11 : (currentMonth === 2 ? 12 : currentMonth - 2), elementId: "twoMonthsAgoCount", labelId: "twoMonthsAgoLabel" }
-  ];
-  
-  targets.forEach(t => {
-    const el = document.getElementById(t.labelId);
-    if (el) el.innerText = getMonthName(t.year, t.month);
-  });
-  
-  const counts = [0, 0, 0];
-  if (historyArray && Array.isArray(historyArray)) {
-    historyArray.forEach(entry => {
-      if (entry?.time) {
-        const date = new Date(entry.time);
-        if (!isNaN(date.getTime())) {
-          const entryYear = date.getFullYear();
-          const entryMonth = date.getMonth() + 1;
-          for (let i = 0; i < targets.length; i++) {
-            if (entryYear === targets[i].year && entryMonth === targets[i].month) {
-              counts[i]++;
-              break;
-            }
-          }
-        }
-      }
-    });
-  }
-  
-  document.getElementById('currentMonthCount').innerText = counts[0];
-  document.getElementById('lastMonthCount').innerText = counts[1];
-  document.getElementById('twoMonthsAgoCount').innerText = counts[2];
-}
-
-// ==================== WOCHENÜBERSICHT (letzte 8 Wochen) ====================
+// ==================== WOCHENLISTE (KORREKT: NEUESTE ZUERST) ====================
 function getLast8Weeks() {
   const weeks = [];
   const now = new Date();
   
-  for (let i = 7; i >= 0; i--) {
+  // Gehe 7 Wochen zurück + aktuelle Woche = 8 Wochen, sortiert von neu nach alt
+  for (let i = 0; i < 8; i++) {
     const date = new Date(now);
     date.setDate(now.getDate() - (i * 7));
     const { year, week } = getWeekNumber(date);
-    weeks.push({ year, week, label: `KW${week}`, range: getWeekRange(year, week) });
+    // Vermeide Duplikate falls die gleiche Woche durch Grenzberechnung doppelt vorkommt
+    if (weeks.length === 0 || weeks[weeks.length-1].week !== week || weeks[weeks.length-1].year !== year) {
+      weeks.push({ year, week, label: `KW${week}`, range: getWeekRange(year, week) });
+    }
   }
-  return weeks;
+  // Stelle sicher, dass wir maximal 8 einzigartige Wochen haben
+  return weeks.slice(0, 8);
 }
 
 function getWeeklyConsumption(historyArray, weeks) {
   const consumption = new Array(weeks.length).fill(0);
-  
   if (!historyArray || !Array.isArray(historyArray)) return consumption;
   
   historyArray.forEach(entry => {
@@ -438,7 +398,6 @@ function getWeeklyConsumption(historyArray, weeks) {
       const date = new Date(entry.time);
       if (!isNaN(date.getTime())) {
         const { year, week } = getWeekNumber(date);
-        
         for (let i = 0; i < weeks.length; i++) {
           if (weeks[i].year === year && weeks[i].week === week) {
             consumption[i]++;
@@ -448,7 +407,6 @@ function getWeeklyConsumption(historyArray, weeks) {
       }
     }
   });
-  
   return consumption;
 }
 
@@ -496,17 +454,16 @@ function renderWeeklyChart(historyArray) {
     }
   });
   
-  // Zeige alle 8 Wochen als Karten an
+  // Wochenkarten anzeigen
   const weekStatsContainer = document.getElementById('weekStats');
   if (weekStatsContainer) {
     weekStatsContainer.innerHTML = '';
-    
     weeks.forEach((week, idx) => {
       const card = document.createElement('div');
       card.className = 'stat-card';
       card.style.minWidth = '110px';
       card.innerHTML = `
-        <div class="stat-week"><strong>${week.label}</strong><br><span style="font-size: 0.7rem; color: #aaa;">${week.range.split(' - ')[0]} bis ${week.range.split(' - ')[1]}</span></div>
+        <div class="stat-week"><strong>${week.label}</strong><br><span style="font-size: 0.7rem; color: #aaa;">${week.range}</span></div>
         <div class="stat-count">${weeklyData[idx]}</div>
         <div class="stat-label">🍺 Biere</div>
       `;
@@ -515,20 +472,16 @@ function renderWeeklyChart(historyArray) {
   }
 }
 
-// ==================== WOCHENWEISES RANKING (neueste Woche zuerst) ====================
+// ==================== WOCHENWEISES RANKING ====================
 function getWeeklyTopDrinkers(historyArray, weeks) {
   if (!historyArray || !Array.isArray(historyArray)) return [];
-  
   const weeklyRankings = [];
   
   for (let w = 0; w < weeks.length; w++) {
     const week = weeks[w];
     const drinkerCount = {};
-    
-    // Initialisiere alle Namen mit 0
     NAMES.forEach(name => { drinkerCount[name] = 0; });
     
-    // Zähle Biere für diese Woche
     historyArray.forEach(entry => {
       if (entry?.time && entry?.name) {
         const date = new Date(entry.time);
@@ -543,43 +496,34 @@ function getWeeklyTopDrinkers(historyArray, weeks) {
       }
     });
     
-    // Erstelle Ranking-Array und sortiere
     const ranking = Object.entries(drinkerCount)
       .filter(([_, count]) => count > 0)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
     
-    weeklyRankings.push({
-      week: week,
-      ranking: ranking
-    });
+    weeklyRankings.push({ week, ranking });
   }
-  
-  // Umkehren, damit neueste Woche zuerst kommt
-  return weeklyRankings.reverse();
+  return weeklyRankings;
 }
 
 function renderWeeklyRanking(historyArray) {
   const weeks = getLast8Weeks();
   const rankings = getWeeklyTopDrinkers(historyArray, weeks);
-  
   const container = document.getElementById('weeklyRanking');
   if (!container) return;
   
   container.innerHTML = '';
-  
   if (rankings.length === 0 || rankings.every(r => r.ranking.length === 0)) {
     container.innerHTML = '<div class="glass-card" style="text-align: center; color: #aaa;">📭 Noch keine Daten für wochenweises Ranking vorhanden</div>';
     return;
   }
   
-  rankings.forEach((weekData, idx) => {
+  const rankColors = ['rank-1', 'rank-2', 'rank-3'];
+  const rankIcons = ['🥇', '🥈', '🥉'];
+  
+  rankings.forEach((weekData) => {
     const weekDiv = document.createElement('div');
     weekDiv.className = 'ranking-week';
-    
-    const rankColors = ['rank-1', 'rank-2', 'rank-3'];
-    const rankIcons = ['🥇', '🥈', '🥉'];
-    
     let rankingHtml = `<div class="ranking-week-title">🏆 ${weekData.week.label} (${weekData.week.range})</div>`;
     rankingHtml += `<div class="ranking-list">`;
     
@@ -596,7 +540,6 @@ function renderWeeklyRanking(historyArray) {
         `;
       });
     }
-    
     rankingHtml += `</div>`;
     weekDiv.innerHTML = rankingHtml;
     container.appendChild(weekDiv);
@@ -645,7 +588,43 @@ function renderMonthlyChart(historyArray) {
     }
   });
   
-  updateMonthStats(historyArray);
+  // Monatsstatistik aktualisieren
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  
+  const targets = [
+    { year: currentYear, month: currentMonth, elementId: "currentMonthCount", labelId: "currentMonthLabel" },
+    { year: currentMonth === 1 ? currentYear - 1 : currentYear, month: currentMonth === 1 ? 12 : currentMonth - 1, elementId: "lastMonthCount", labelId: "lastMonthLabel" },
+    { year: currentMonth <= 2 ? currentYear - 1 : currentYear, month: currentMonth === 1 ? 11 : (currentMonth === 2 ? 12 : currentMonth - 2), elementId: "twoMonthsAgoCount", labelId: "twoMonthsAgoLabel" }
+  ];
+  
+  targets.forEach(t => {
+    const el = document.getElementById(t.labelId);
+    if (el) el.innerText = new Date(t.year, t.month - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' });
+  });
+  
+  const counts = [0, 0, 0];
+  if (historyArray && Array.isArray(historyArray)) {
+    historyArray.forEach(entry => {
+      if (entry?.time) {
+        const date = new Date(entry.time);
+        if (!isNaN(date.getTime())) {
+          const entryYear = date.getFullYear();
+          const entryMonth = date.getMonth() + 1;
+          for (let i = 0; i < targets.length; i++) {
+            if (entryYear === targets[i].year && entryMonth === targets[i].month) {
+              counts[i]++;
+              break;
+            }
+          }
+        }
+      }
+    });
+  }
+  document.getElementById('currentMonthCount').innerText = counts[0];
+  document.getElementById('lastMonthCount').innerText = counts[1];
+  document.getElementById('twoMonthsAgoCount').innerText = counts[2];
 }
 
 // ==================== UI AKTUALISIEREN ====================
@@ -657,17 +636,12 @@ function refreshUI(historyArray) {
   renderWeeklyRanking(historyArray);
 }
 
-// ==================== LOCALSTORAGE FUNKTIONEN ====================
+// ==================== LOCALSTORAGE & FIREBASE ====================
 function loadLocalData() {
   const stored = localStorage.getItem(STORAGE_KEY);
   return stored ? JSON.parse(stored) : null;
 }
 
-function saveLocalData(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
-// ==================== FIREBASE INITIALISIERUNG ====================
 async function initFirebase() {
   updateConnectionStatus('📡 Verbinde mit Firebase...');
   try {
@@ -678,53 +652,29 @@ async function initFirebase() {
     mainDocRef = doc(db, "strichliste", "juii_main");
     const testSnap = await getDoc(mainDocRef);
     if (!testSnap.exists()) {
-      const emptyHistory = [];
-      refreshUI(emptyHistory);
+      refreshUI([]);
     } else {
       const data = testSnap.data();
-      const history = data.history || [];
-      refreshUI(history);
+      refreshUI(data.history || []);
     }
     updateConnectionStatus('✅ Firebase verbunden (Live-Synchronisation)');
     useFirebase = true;
     unsubscribe = onSnapshot(mainDocRef, (snapshot) => {
       if (snapshot.exists()) {
-        const snapData = snapshot.data();
-        const history = snapData.history || [];
-        refreshUI(history);
+        refreshUI(snapshot.data().history || []);
       }
     });
-    return true;
   } catch (err) {
     console.error("Firebase Fehler:", err);
     updateConnectionStatus('⚠️ Firebase nicht erreichbar – Verwende lokalen Speicher');
-    renderLocalData();
+    let data = loadLocalData();
+    refreshUI(data?.history || []);
     useFirebase = false;
-    return false;
   }
-}
-
-// ==================== LOKALEN SPEICHER INITIALISIEREN ====================
-function renderLocalData() {
-  let data = loadLocalData();
-  let history = [];
-  if (data && data.history) {
-    history = data.history;
-  } else if (data && data.beers !== undefined) {
-    history = [];
-  } else {
-    history = [];
-  }
-  refreshUI(history);
-  updateConnectionStatus('💾 Lokaler Speicher (Offline-Modus)');
 }
 
 // ==================== START ====================
-async function start() {
-  await initFirebase();
-}
-
-start();
+initFirebase();
 </script>
 </body>
 </html>
