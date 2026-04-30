@@ -121,13 +121,13 @@
       color: #aaa;
       margin-top: 5px;
     }
-    #chartContainer, #weeklyChartContainer {
+    #weeklyChartContainer, #chartContainer {
       background: #1a1a28;
       border-radius: 28px;
       padding: 16px;
       margin: 28px 0;
     }
-    canvas#beerChart, canvas#weeklyChart { 
+    canvas#weeklyChart, canvas#beerChart { 
       max-height: 320px; 
       width: 100% !important; 
     }
@@ -157,6 +157,16 @@
   </div>
 </div>
 
+<!-- Wochenauswertung zuerst -->
+<div id="weeklyChartContainer">
+  <h2>📊 Bierkonsum pro Woche (letzte 8 Wochen)</h2>
+  <canvas id="weeklyChart" width="800" height="350"></canvas>
+  <div id="weekStats" class="weeks-grid">
+    <!-- Hier werden dynamisch alle 8 Wochen als Karten angezeigt -->
+  </div>
+</div>
+
+<!-- Monatsauswertung danach -->
 <div id="chartContainer">
   <h2>📈 Bierkonsum pro Monat</h2>
   <canvas id="beerChart" width="800" height="350"></canvas>
@@ -177,14 +187,6 @@
       <div class="stat-count" id="twoMonthsAgoCount">0</div>
       <div class="stat-label">🍺 Biere</div>
     </div>
-  </div>
-</div>
-
-<div id="weeklyChartContainer">
-  <h2>📊 Bierkonsum pro Woche (letzte 8 Wochen)</h2>
-  <canvas id="weeklyChart" width="800" height="350"></canvas>
-  <div id="weekStats" class="weeks-grid">
-    <!-- Hier werden dynamisch alle 8 Wochen als Karten angezeigt -->
   </div>
 </div>
 
@@ -491,8 +493,8 @@ function renderMonthlyChart(historyArray) {
 function refreshUI(historyArray) {
   if (!historyArray) historyArray = [];
   updateTotalDisplay(historyArray);
-  renderMonthlyChart(historyArray);
-  renderWeeklyChart(historyArray);
+  renderWeeklyChart(historyArray);   // Wochen zuerst
+  renderMonthlyChart(historyArray);  // Monate danach
 }
 
 // ==================== LOCALSTORAGE FUNKTIONEN ====================
