@@ -105,7 +105,7 @@
     }
     .weeks-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 12px;
       margin-top: 20px;
     }
@@ -256,11 +256,12 @@ function escapeHtml(str) {
   return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
 }
 
-// Korrekte ISO-Kalenderwoche für Deutschland (Montag bis Sonntag)
+// Korrekte ISO-8601 Kalenderwoche für Deutschland (Montag bis Sonntag)
+// Basierend auf der offiziellen deutschen Norm DIN 1355-1 / ISO 8601
 function getWeekNumber(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  // Donnerstag der aktuellen Woche (ISO: Woche gehört zum Jahr des Donnerstags)
+  // Donnerstag der aktuellen Woche (Tag 4 der Woche)
   const thursday = new Date(d);
   thursday.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
   const year = thursday.getFullYear();
@@ -271,10 +272,11 @@ function getWeekNumber(date) {
   return { year, week };
 }
 
-// Gibt den Montag einer KW zurück (deutsche Zeitzone)
+// Gibt den Montag einer Kalenderwoche zurück
 function getMondayOfWeek(year, week) {
   const firstJan = new Date(year, 0, 1);
   const dayOfWeek = firstJan.getDay();
+  // Berechne den ersten Montag des Jahres (Montag = 1, Sonntag = 0)
   const daysToFirstMonday = (dayOfWeek === 1 ? 0 : (8 - dayOfWeek)) % 7;
   const firstMonday = new Date(year, 0, 1 + daysToFirstMonday);
   const monday = new Date(firstMonday);
@@ -291,7 +293,7 @@ function getWeekRange(year, week) {
   return `${formatDate(monday)} - ${formatDate(sunday)}`;
 }
 
-// Liefert die letzten 8 Wochen (aktuelle Woche zuerst)
+// Liefert die letzten 8 Kalenderwochen (aktuelle Woche zuerst)
 function getLast8Weeks() {
   const today = new Date();
   const weeks = [];
@@ -454,7 +456,7 @@ function renderMonthlyChart(historyArray) {
   const chartData = sortedLabels.map(l => months.get(l) || 0);
   
   // Deutsche Monatsnamen für Labels
-  const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  const monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   const germanLabels = sortedLabels.map(l => {
     const [m, y] = l.split('/');
     return `${monthNames[parseInt(m)-1]} ${y}`;
@@ -465,7 +467,7 @@ function renderMonthlyChart(historyArray) {
   beerChart = new Chart(ctx, {
     type: 'bar',
     data: { labels: germanLabels, datasets: [{ label: '🍺 Biere/Monat', data: chartData, backgroundColor: '#f9b43a', borderRadius: 12 }] },
-    options: { responsive: true, plugins: { legend: { labels: { color: '#fff' } } }, scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966' } } } }
+    options: { responsive: true, plugins: { legend: { labels: { color: '#fff' } } }, scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966', rotation: 45, maxRotation: 45 } } } }
   });
   
   const now = new Date();
