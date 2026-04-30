@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>JUII Bierdeckel – Statistik</title>
+  <title>OGA Bierstatistik</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   
   <style>
@@ -93,31 +93,31 @@
     .stats-container {
       display: flex;
       justify-content: center;
-      gap: 20px;
+      gap: 15px;
       margin-top: 20px;
       flex-wrap: wrap;
     }
     .stat-card {
       background: #252536;
       border-radius: 20px;
-      padding: 15px 25px;
-      min-width: 140px;
+      padding: 12px 18px;
+      min-width: 120px;
       text-align: center;
       border: 1px solid #3a3a4a;
     }
     .stat-month, .stat-week {
-      font-size: 1rem;
+      font-size: 0.9rem;
       font-weight: bold;
       color: #ffd966;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .stat-count {
-      font-size: 2.2rem;
+      font-size: 1.8rem;
       font-weight: bold;
       color: #f9b43a;
     }
     .stat-label {
-      font-size: 0.8rem;
+      font-size: 0.7rem;
       color: #aaa;
       margin-top: 5px;
     }
@@ -138,11 +138,17 @@
       gap: 15px;
       flex-wrap: wrap;
     }
+    .weeks-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }
   </style>
 </head>
 <body>
 
-<h1>🍺 JUII BIERDECKEL 🍺</h1>
+<h1>🍺 OGA BIERSTATISTIK 🍺</h1>
 
 <div class="glass-card">
   <div class="badge-container">
@@ -177,8 +183,8 @@
 <div id="weeklyChartContainer">
   <h2>📊 Bierkonsum pro Woche (letzte 8 Wochen)</h2>
   <canvas id="weeklyChart" width="800" height="350"></canvas>
-  <div id="weekStats" class="stats-container" style="margin-top: 20px;">
-    <!-- Hier werden dynamisch die letzten 4 Wochen als Highlights angezeigt -->
+  <div id="weekStats" class="weeks-grid">
+    <!-- Hier werden dynamisch alle 8 Wochen als Karten angezeigt -->
   </div>
 </div>
 
@@ -205,31 +211,38 @@ let weeklyChart = null;
 const STORAGE_KEY = "juii_bierdeckel_data";
 
 // ==================== HILFSFUNKTIONEN ====================
-function formatEuro(amount) {
-  if (amount === Math.floor(amount)) {
-    return `${Math.floor(amount)} €`;
-  } else {
-    return `${amount.toFixed(2)} €`;
-  }
-}
-
 function updateConnectionStatus(msg) {
   const div = document.getElementById('connectionStatus');
   if (div) div.innerHTML = msg;
 }
 
 // ==================== GESAMTANZEIGEN ====================
-function getTotalBeerCount(data) {
-  if (!data || !data.beers) return 0;
-  return data.beers;
-}
-
 function getAllTimeBeerCount(historyArray) {
   if (!historyArray || !Array.isArray(historyArray)) return 0;
   return historyArray.length;
 }
 
-function updateTotalDisplay(data, historyArray) {
+function getCurrentMonthCount(historyArray) {
+  if (!historyArray || !Array.isArray(historyArray)) return 0;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  
+  let count = 0;
+  historyArray.forEach(entry => {
+    if (entry?.time) {
+      const date = new Date(entry.time);
+      if (!isNaN(date.getTime()) && 
+          date.getFullYear() === currentYear && 
+          date.getMonth() + 1 === currentMonth) {
+        count++;
+      }
+    }
+  });
+  return count;
+}
+
+function updateTotalDisplay(historyArray) {
   const totalDiv = document.getElementById('totalBeerDisplay');
   const allTimeDiv = document.getElementById('totalAllTimeDisplay');
   
@@ -281,26 +294,6 @@ function getWeekRange(year, week) {
   sunday.setDate(monday.getDate() + 6);
   const formatDate = (d) => `${d.getDate()}.${d.getMonth()+1}`;
   return `${formatDate(monday)} - ${formatDate(sunday)}`;
-}
-
-function getCurrentMonthCount(historyArray) {
-  if (!historyArray || !Array.isArray(historyArray)) return 0;
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  
-  let count = 0;
-  historyArray.forEach(entry => {
-    if (entry?.time) {
-      const date = new Date(entry.time);
-      if (!isNaN(date.getTime()) && 
-          date.getFullYear() === currentYear && 
-          date.getMonth() + 1 === currentMonth) {
-        count++;
-      }
-    }
-  });
-  return count;
 }
 
 // ==================== MONATSÜBERSICHT ====================
@@ -357,7 +350,7 @@ function getLast8Weeks() {
     const date = new Date(now);
     date.setDate(now.getDate() - (i * 7));
     const { year, week } = getWeekNumber(date);
-    weeks.push({ year, week, label: `KW${week} ${year}`, range: getWeekRange(year, week) });
+    weeks.push({ year, week, label: `KW${week}`, range: getWeekRange(year, week) });
   }
   return weeks;
 }
@@ -430,20 +423,19 @@ function renderWeeklyChart(historyArray) {
     }
   });
   
-  // Zeige die letzten 4 Wochen als Highlight-Karten an
+  // Zeige alle 8 Wochen als Karten an
   const weekStatsContainer = document.getElementById('weekStats');
   if (weekStatsContainer) {
     weekStatsContainer.innerHTML = '';
-    const last4Weeks = weeks.slice(-4);
-    const last4Data = weeklyData.slice(-4);
     
-    last4Weeks.forEach((week, idx) => {
+    weeks.forEach((week, idx) => {
       const card = document.createElement('div');
       card.className = 'stat-card';
+      card.style.minWidth = '110px';
       card.innerHTML = `
-        <div class="stat-week">${week.label}</div>
-        <div class="stat-count">${last4Data[idx]}</div>
-        <div class="stat-label">🍺 Biere<br><span style="font-size: 0.7rem;">${week.range}</span></div>
+        <div class="stat-week"><strong>${week.label}</strong><br><span style="font-size: 0.7rem; color: #aaa;">${week.range.split(' - ')[0]} bis ${week.range.split(' - ')[1]}</span></div>
+        <div class="stat-count">${weeklyData[idx]}</div>
+        <div class="stat-label">🍺 Biere</div>
       `;
       weekStatsContainer.appendChild(card);
     });
@@ -497,69 +489,10 @@ function renderMonthlyChart(historyArray) {
 
 // ==================== UI AKTUALISIEREN ====================
 function refreshUI(historyArray) {
-  if (useFirebase && mainDocRef) {
-    import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js").then(({ getDoc }) => {
-      getDoc(mainDocRef).then(snap => {
-        if (snap.exists()) {
-          const data = snap.data();
-          const history = data.history || [];
-          updateTotalDisplay(data, history);
-          renderMonthlyChart(history);
-          renderWeeklyChart(history);
-        }
-      });
-    });
-  } else {
-    let data = loadLocalData();
-    if (!data) {
-      data = { beers: 0, history: [] };
-      saveLocalData(data);
-    }
-    const history = data.history || [];
-    updateTotalDisplay(data, history);
-    renderMonthlyChart(history);
-    renderWeeklyChart(history);
-  }
-}
-
-function updateTotalDisplay(data, historyArray) {
-  const totalDiv = document.getElementById('totalBeerDisplay');
-  const allTimeDiv = document.getElementById('totalAllTimeDisplay');
-  
-  if (totalDiv) {
-    const currentMonthCount = getCurrentMonthCount(historyArray);
-    totalDiv.innerHTML = `🍺 Aktueller Monat: ${currentMonthCount} ${currentMonthCount === 1 ? 'Bier' : 'Biere'}`;
-  }
-  
-  if (allTimeDiv) {
-    const allTime = getAllTimeBeerCount(historyArray);
-    allTimeDiv.innerHTML = `📊 Alle Zeiten: ${allTime} ${allTime === 1 ? 'Bier' : 'Biere'}`;
-  }
-}
-
-function getAllTimeBeerCount(historyArray) {
-  if (!historyArray || !Array.isArray(historyArray)) return 0;
-  return historyArray.length;
-}
-
-function getCurrentMonthCount(historyArray) {
-  if (!historyArray || !Array.isArray(historyArray)) return 0;
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  
-  let count = 0;
-  historyArray.forEach(entry => {
-    if (entry?.time) {
-      const date = new Date(entry.time);
-      if (!isNaN(date.getTime()) && 
-          date.getFullYear() === currentYear && 
-          date.getMonth() + 1 === currentMonth) {
-        count++;
-      }
-    }
-  });
-  return count;
+  if (!historyArray) historyArray = [];
+  updateTotalDisplay(historyArray);
+  renderMonthlyChart(historyArray);
+  renderWeeklyChart(historyArray);
 }
 
 // ==================== LOCALSTORAGE FUNKTIONEN ====================
@@ -583,16 +516,12 @@ async function initFirebase() {
     mainDocRef = doc(db, "strichliste", "juii_main");
     const testSnap = await getDoc(mainDocRef);
     if (!testSnap.exists()) {
-      const emptyData = { beers: 0, history: [] };
-      updateTotalDisplay(emptyData, []);
-      renderMonthlyChart([]);
-      renderWeeklyChart([]);
+      const emptyHistory = [];
+      refreshUI(emptyHistory);
     } else {
       const data = testSnap.data();
       const history = data.history || [];
-      updateTotalDisplay(data, history);
-      renderMonthlyChart(history);
-      renderWeeklyChart(history);
+      refreshUI(history);
     }
     updateConnectionStatus('✅ Firebase verbunden (Live-Synchronisation)');
     useFirebase = true;
@@ -600,9 +529,7 @@ async function initFirebase() {
       if (snapshot.exists()) {
         const snapData = snapshot.data();
         const history = snapData.history || [];
-        updateTotalDisplay(snapData, history);
-        renderMonthlyChart(history);
-        renderWeeklyChart(history);
+        refreshUI(history);
       }
     });
     return true;
@@ -618,14 +545,16 @@ async function initFirebase() {
 // ==================== LOKALEN SPEICHER INITIALISIEREN ====================
 function renderLocalData() {
   let data = loadLocalData();
-  if (!data) {
-    data = { beers: 0, history: [] };
-    saveLocalData(data);
+  let history = [];
+  if (data && data.history) {
+    history = data.history;
+  } else if (data && data.beers !== undefined) {
+    // Altes Format ohne History
+    history = [];
+  } else {
+    history = [];
   }
-  const history = data.history || [];
-  updateTotalDisplay(data, history);
-  renderMonthlyChart(history);
-  renderWeeklyChart(history);
+  refreshUI(history);
   updateConnectionStatus('💾 Lokaler Speicher (Offline-Modus)');
 }
 
