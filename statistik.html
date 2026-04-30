@@ -132,6 +132,7 @@
       width: 100% !important; 
     }
     h2 { margin: 1rem 0 0.75rem; color: #ffd966; }
+    h3 { margin: 0.8rem 0 0.5rem; color: #f9b43a; font-size: 1.2rem; }
     .badge-container {
       display: flex;
       justify-content: center;
@@ -143,6 +144,74 @@
       grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       gap: 12px;
       margin-top: 20px;
+    }
+    
+    /* Ranking Styles */
+    .ranking-container {
+      background: #1a1a28;
+      border-radius: 28px;
+      padding: 20px;
+      margin: 28px 0;
+    }
+    .ranking-week {
+      background: #252536;
+      border-radius: 24px;
+      padding: 16px;
+      margin-bottom: 24px;
+      border-left: 4px solid #f9b43a;
+    }
+    .ranking-week-title {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #ffd966;
+      margin-bottom: 15px;
+      text-align: left;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #3a3a4a;
+    }
+    .ranking-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ranking-item {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      background: #1e1e2e;
+      padding: 10px 15px;
+      border-radius: 16px;
+      transition: transform 0.2s;
+    }
+    .ranking-item:hover {
+      transform: translateX(5px);
+      background: #2a2a3a;
+    }
+    .rank-number {
+      font-size: 1.5rem;
+      font-weight: bold;
+      width: 50px;
+      text-align: center;
+    }
+    .rank-1 { color: #ffd700; }
+    .rank-2 { color: #c0c0c0; }
+    .rank-3 { color: #cd7f32; }
+    .rank-name {
+      flex: 1;
+      font-size: 1rem;
+      font-weight: 500;
+      text-align: left;
+    }
+    .rank-count {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: #f9b43a;
+      background: #2a2a3a;
+      padding: 4px 12px;
+      border-radius: 40px;
+    }
+    .rank-beer-icon {
+      font-size: 1.2rem;
     }
   </style>
 </head>
@@ -190,6 +259,14 @@
   </div>
 </div>
 
+<!-- Wochenweises Ranking der Top 3 Biertrinker -->
+<div class="ranking-container">
+  <h2>🏆 Top 3 Biertrinker pro Woche</h2>
+  <div id="weeklyRanking">
+    <!-- Dynamisch befüllt -->
+  </div>
+</div>
+
 <footer><span id="connectionStatus"></span></footer>
 
 <script>
@@ -211,6 +288,7 @@ let beerChart = null;
 let weeklyChart = null;
 
 const STORAGE_KEY = "juii_bierdeckel_data";
+const NAMES = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 
 // ==================== HILFSFUNKTIONEN ====================
 function updateConnectionStatus(msg) {
@@ -257,20 +335,6 @@ function updateTotalDisplay(historyArray) {
     const allTime = getAllTimeBeerCount(historyArray);
     allTimeDiv.innerHTML = `📊 Alle Zeiten: ${allTime} ${allTime === 1 ? 'Bier' : 'Biere'}`;
   }
-}
-
-// ==================== TOAST-NACHRICHT ====================
-function showToast(message, isError = false) {
-  const toast = document.createElement('div');
-  toast.className = 'toast-popup';
-  toast.style.background = isError ? '#c44536' : '#2e7d64';
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transition = 'opacity 0.3s';
-    setTimeout(() => toast.remove(), 300);
-  }, 2500);
 }
 
 // ==================== HELFER FÜR DATUM ====================
@@ -444,6 +508,100 @@ function renderWeeklyChart(historyArray) {
   }
 }
 
+// ==================== WOCHENWEISES RANKING ====================
+function getWeeklyTopDrinkers(historyArray, weeks) {
+  if (!historyArray || !Array.isArray(historyArray)) return [];
+  
+  const weeklyRankings = [];
+  
+  for (let w = 0; w < weeks.length; w++) {
+    const week = weeks[w];
+    const drinkerCount = {};
+    
+    // Initialisiere alle Namen mit 0
+    NAMES.forEach(name => { drinkerCount[name] = 0; });
+    
+    // Zähle Biere für diese Woche
+    historyArray.forEach(entry => {
+      if (entry?.time && entry?.name) {
+        const date = new Date(entry.time);
+        if (!isNaN(date.getTime())) {
+          const { year, week: entryWeek } = getWeekNumber(date);
+          if (year === week.year && entryWeek === week.week) {
+            if (drinkerCount[entry.name] !== undefined) {
+              drinkerCount[entry.name]++;
+            }
+          }
+        }
+      }
+    });
+    
+    // Erstelle Ranking-Array und sortiere
+    const ranking = Object.entries(drinkerCount)
+      .filter(([_, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+    
+    weeklyRankings.push({
+      week: week,
+      ranking: ranking
+    });
+  }
+  
+  return weeklyRankings;
+}
+
+function renderWeeklyRanking(historyArray) {
+  const weeks = getLast8Weeks();
+  const rankings = getWeeklyTopDrinkers(historyArray, weeks);
+  
+  const container = document.getElementById('weeklyRanking');
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  if (rankings.length === 0 || rankings.every(r => r.ranking.length === 0)) {
+    container.innerHTML = '<div class="glass-card" style="text-align: center; color: #aaa;">📭 Noch keine Daten für wochenweises Ranking vorhanden</div>';
+    return;
+  }
+  
+  rankings.forEach((weekData, idx) => {
+    const weekDiv = document.createElement('div');
+    weekDiv.className = 'ranking-week';
+    
+    const rankColors = ['rank-1', 'rank-2', 'rank-3'];
+    const rankIcons = ['🥇', '🥈', '🥉'];
+    
+    let rankingHtml = `<div class="ranking-week-title">🏆 ${weekData.week.label} (${weekData.week.range})</div>`;
+    rankingHtml += `<div class="ranking-list">`;
+    
+    if (weekData.ranking.length === 0) {
+      rankingHtml += `<div style="text-align: center; padding: 15px; color: #888;">🍺 Keine Biere in dieser Woche</div>`;
+    } else {
+      weekData.ranking.forEach(([name, count], rankIdx) => {
+        rankingHtml += `
+          <div class="ranking-item">
+            <div class="rank-number ${rankColors[rankIdx]}">${rankIcons[rankIdx]}</div>
+            <div class="rank-name">${escapeHtml(name)}</div>
+            <div class="rank-count">${count} <span class="rank-beer-icon">🍺</span></div>
+          </div>
+        `;
+      });
+    }
+    
+    rankingHtml += `</div>`;
+    weekDiv.innerHTML = rankingHtml;
+    container.appendChild(weekDiv);
+  });
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/[&<>]/g, function(m) {
+    return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;';
+  });
+}
+
 // ==================== MONATS-CHART RENDERN ====================
 function renderMonthlyChart(historyArray) {
   const months = new Map();
@@ -493,8 +651,9 @@ function renderMonthlyChart(historyArray) {
 function refreshUI(historyArray) {
   if (!historyArray) historyArray = [];
   updateTotalDisplay(historyArray);
-  renderWeeklyChart(historyArray);   // Wochen zuerst
-  renderMonthlyChart(historyArray);  // Monate danach
+  renderWeeklyChart(historyArray);
+  renderMonthlyChart(historyArray);
+  renderWeeklyRanking(historyArray);  // Neues Ranking
 }
 
 // ==================== LOCALSTORAGE FUNKTIONEN ====================
@@ -551,7 +710,6 @@ function renderLocalData() {
   if (data && data.history) {
     history = data.history;
   } else if (data && data.beers !== undefined) {
-    // Altes Format ohne History
     history = [];
   } else {
     history = [];
