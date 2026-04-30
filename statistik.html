@@ -256,51 +256,41 @@ function escapeHtml(str) {
   return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
 }
 
-// ISO 8601 Kalenderwoche (Montag basiert) - korrekt implementiert
-function getISOWeek(date) {
+// Einfache Wochenberechnung: KW = (Tage seit Jahresbeginn / 7) aufgerundet, beginnend mit KW 1 am 1. Januar
+function getWeekNumber(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  // Donnerstag der aktuellen Woche
-  const thursday = new Date(d);
-  thursday.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
-  const year = thursday.getFullYear();
-  const firstThursday = new Date(year, 0, 4);
-  firstThursday.setDate(firstThursday.getDate() - ((firstThursday.getDay() + 6) % 7));
-  const week = Math.floor((thursday - firstThursday) / (7 * 24 * 60 * 60 * 1000)) + 1;
-  return { year, week };
+  const startOfYear = new Date(d.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((d - startOfYear) / (24 * 60 * 60 * 1000));
+  const week = Math.floor(dayOfYear / 7) + 1;
+  return { year: d.getFullYear(), week: week };
 }
 
-// Erster Tag (Montag) der KW
-function getMondayOfWeek(year, week) {
-  const firstJan = new Date(year, 0, 1);
-  const dayOfWeek = firstJan.getDay();
-  const daysToFirstMonday = (dayOfWeek === 1 ? 0 : (8 - dayOfWeek)) % 7;
-  const firstMonday = new Date(year, 0, 1 + daysToFirstMonday);
-  const monday = new Date(firstMonday);
-  monday.setDate(firstMonday.getDate() + (week - 1) * 7);
-  return monday;
-}
-
+// Berechnet den Montag und Sonntag einer Kalenderwoche (basierend auf einfacher Berechnung)
 function getWeekRange(year, week) {
-  const monday = getMondayOfWeek(year, week);
+  const startOfYear = new Date(year, 0, 1);
+  const monday = new Date(startOfYear);
+  monday.setDate(startOfYear.getDate() + (week - 1) * 7);
+  // Adjustiere zum Montag (0=Sonntag, 1=Montag, ...)
+  const currentDay = monday.getDay();
+  const diffToMonday = (currentDay === 0 ? -6 : 1 - currentDay);
+  monday.setDate(monday.getDate() + diffToMonday);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   const formatDate = (d) => `${d.getDate()}.${d.getMonth()+1}`;
   return `${formatDate(monday)} - ${formatDate(sunday)}`;
 }
 
-// Liefert die letzten 8 vollständigen Kalenderwochen (abgeschlossene Wochen)
+// Liefert die letzten 8 Wochen (inkl. aktueller)
 function getLast8Weeks() {
   const today = new Date();
   const weeks = [];
   const seen = new Set();
   
-  // Beginne mit der aktuellen Woche, aber nur wenn sie abgeschlossen ist? 
-  // Wir zeigen die letzten 8 Wochen inklusive der aktuellen an, sortiert aktuellste zuerst.
   for (let i = 0; i < 20; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() - (i * 7));
-    const { year, week } = getISOWeek(date);
+    const { year, week } = getWeekNumber(date);
     const key = `${year}-${week}`;
     if (!seen.has(key)) {
       seen.add(key);
@@ -342,7 +332,7 @@ function getWeeklyData(historyArray, weeks) {
     if (!entry?.time || !entry?.name) return;
     const date = new Date(entry.time);
     if (isNaN(date)) return;
-    const { year, week: entryWeek } = getISOWeek(date);
+    const { year, week: entryWeek } = getWeekNumber(date);
     
     for (let i = 0; i < weeks.length; i++) {
       if (weeks[i].year === year && weeks[i].week === entryWeek) {
