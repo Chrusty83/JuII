@@ -190,6 +190,49 @@
       padding: 4px 12px;
       border-radius: 40px;
     }
+    
+    /* Verlauf Styles */
+    .history-container {
+      background: #1a1a28;
+      border-radius: 28px;
+      padding: 20px;
+      margin: 28px 0;
+    }
+    .history-list {
+      max-height: 400px;
+      overflow-y: auto;
+      background: #0f0f17;
+      border-radius: 20px;
+      padding: 10px;
+    }
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      margin: 8px 0;
+      background: #1e1e2e;
+      border-radius: 16px;
+      transition: all 0.2s;
+      border-left: 3px solid #f9b43a;
+    }
+    .history-item:hover {
+      background: #2a2a3a;
+      transform: translateX(5px);
+    }
+    .history-name {
+      font-weight: bold;
+      font-size: 1rem;
+      color: #ffd966;
+    }
+    .history-time {
+      font-size: 0.8rem;
+      color: #888;
+    }
+    .history-beer-icon {
+      font-size: 1.1rem;
+    }
+    
     footer {
       font-size: 11px;
       margin-top: 30px;
@@ -200,7 +243,7 @@
 </head>
 <body>
 
-<h1>OGA BIERSTATISTIK</h1>
+<h1>🍺 OGA BIERSTATISTIK 🍺</h1>
 
 <div class="glass-card">
   <div class="badge-container">
@@ -242,6 +285,14 @@
   <div id="weeklyRanking"></div>
 </div>
 
+<!-- Verlauf -->
+<div class="history-container">
+  <h2>📜 Letzte Aktionen</h2>
+  <div id="historyList" class="history-list">
+    <div style="text-align:center;padding:20px;color:#888;">📭 Keine Einträge vorhanden</div>
+  </div>
+</div>
+
 <footer><span id="connectionStatus"></span></footer>
 
 <script>
@@ -277,11 +328,9 @@ function escapeHtml(str) {
 function getWeekNumber(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  // Donnerstag der aktuellen Woche (Tag 4 der Woche)
   const thursday = new Date(d);
   thursday.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
   const year = thursday.getFullYear();
-  // Erster Donnerstag des Jahres
   const firstThursday = new Date(year, 0, 4);
   firstThursday.setDate(firstThursday.getDate() - ((firstThursday.getDay() + 6) % 7));
   const week = Math.floor((thursday - firstThursday) / (7 * 24 * 60 * 60 * 1000)) + 1;
@@ -306,13 +355,6 @@ function getLast8Weeks() {
     }
   }
   return weeks;
-}
-
-// Prüft ob eine Woche die aktuelle Woche ist
-function isCurrentWeek(week, year) {
-  const today = new Date();
-  const { year: currentYear, week: currentWeek } = getWeekNumber(today);
-  return year === currentYear && week === currentWeek;
 }
 
 function getAllTimeBeerCount(historyArray) {
@@ -361,12 +403,44 @@ function getWeeklyData(historyArray, weeks) {
   return { consumption, perPerson };
 }
 
+// Verlauf anzeigen
+function renderHistory(historyArray) {
+  const container = document.getElementById('historyList');
+  if (!container) return;
+  
+  if (!historyArray || historyArray.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">📭 Keine Einträge vorhanden</div>';
+    return;
+  }
+  
+  // Neueste zuerst anzeigen
+  const reversedHistory = [...historyArray].reverse();
+  
+  container.innerHTML = reversedHistory.map(entry => {
+    const date = new Date(entry.time);
+    const formattedTime = date.toLocaleString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    return `
+      <div class="history-item">
+        <span class="history-beer-icon">🍺</span>
+        <span class="history-name">${escapeHtml(entry.name)}</span>
+        <span class="history-time">${formattedTime}</span>
+      </div>
+    `;
+  }).join('');
+}
+
 function renderWeeklyChart(historyArray) {
   const weeks = getLast8Weeks();
   const { consumption, perPerson } = getWeeklyData(historyArray, weeks);
   
-  // Chart mit Hervorhebung der aktuellen Woche
-  const currentWeekIndex = 0; // Erste Woche ist die aktuelle
+  const currentWeekIndex = 0;
   
   const ctx = document.getElementById('weeklyChart').getContext('2d');
   if (weeklyChart) weeklyChart.destroy();
@@ -395,7 +469,6 @@ function renderWeeklyChart(historyArray) {
     }
   });
   
-  // Wochenkarten mit Hervorhebung
   const container = document.getElementById('weekStats');
   if (container) {
     container.innerHTML = weeks.map((week, idx) => {
@@ -410,7 +483,6 @@ function renderWeeklyChart(historyArray) {
     }).join('');
   }
   
-  // Ranking mit Hervorhebung der aktuellen Woche
   const rankingContainer = document.getElementById('weeklyRanking');
   if (rankingContainer) {
     rankingContainer.innerHTML = weeks.map((week, idx) => {
@@ -466,7 +538,6 @@ function renderMonthlyChart(historyArray) {
   });
   const chartData = sortedLabels.map(l => months.get(l) || 0);
   
-  // Deutsche Monatsnamen für Labels
   const monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   const germanLabels = sortedLabels.map(l => {
     const [m, y] = l.split('/');
@@ -516,6 +587,7 @@ function refreshUI(historyArray) {
   updateTotalDisplay(historyArray);
   renderWeeklyChart(historyArray);
   renderMonthlyChart(historyArray);
+  renderHistory(historyArray);
 }
 
 function loadLocalData() {
