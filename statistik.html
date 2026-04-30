@@ -191,6 +191,73 @@
       border-radius: 40px;
     }
     
+    /* Speed Ranking Styles */
+    .speed-ranking-container {
+      background: #1a1a28;
+      border-radius: 28px;
+      padding: 20px;
+      margin: 28px 0;
+    }
+    .speed-ranking-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .speed-ranking-item {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: #1e1e2e;
+      padding: 14px 20px;
+      border-radius: 20px;
+      transition: all 0.2s;
+      border-bottom: 1px solid #3a3a4a;
+    }
+    .speed-ranking-item:hover {
+      transform: translateX(5px);
+      background: #2a2a3a;
+    }
+    .speed-rank-number {
+      font-size: 1.4rem;
+      font-weight: bold;
+      width: 60px;
+      text-align: center;
+      color: #ffd966;
+    }
+    .speed-rank-1 { font-size: 1.8rem; color: #ffd700; }
+    .speed-rank-2 { font-size: 1.6rem; color: #c0c0c0; }
+    .speed-rank-3 { font-size: 1.5rem; color: #cd7f32; }
+    .speed-rank-name {
+      flex: 1;
+      font-size: 1.1rem;
+      font-weight: 500;
+      text-align: left;
+    }
+    .speed-rank-time {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: #5a9e4e;
+      background: #2a2a3a;
+      padding: 5px 15px;
+      border-radius: 40px;
+    }
+    .avg-time {
+      font-size: 0.9rem;
+      color: #aaa;
+      margin-left: 10px;
+      font-weight: normal;
+    }
+    .record-badge {
+      font-size: 0.8rem;
+      background: #f9b43a;
+      color: #111;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-left: 10px;
+      font-weight: bold;
+    }
+    
     /* Verlauf Styles */
     .history-container {
       background: #1a1a28;
@@ -292,9 +359,25 @@
   <div id="weeklyRanking"></div>
 </div>
 
-<!-- Verlauf -->
+<!-- Speed Ranking: Schnellste Trinker (Rekordzeiten) -->
+<div class="speed-ranking-container">
+  <h2>⚡ Top 10 Schnellste Trinker (Rekordzeit zwischen 2 Bieren) ⚡</h2>
+  <div id="speedRankingList" class="speed-ranking-list">
+    <div style="text-align:center;padding:20px;color:#888;">📊 Berechne Rekorde...</div>
+  </div>
+</div>
+
+<!-- Durchschnittliche Trinkdauer pro Person (nur gleicher Tag) -->
+<div class="speed-ranking-container">
+  <h2>⏱️ Durchschnittliche Trinkdauer pro Person (gleicher Tag) ⏱️</h2>
+  <div id="avgTimeList" class="speed-ranking-list">
+    <div style="text-align:center;padding:20px;color:#888;">📊 Berechne Durchschnittswerte...</div>
+  </div>
+</div>
+
+<!-- Verlauf - nur letzte 2 Monate -->
 <div class="history-container">
-  <h2>📜 Letzte Aktionen</h2>
+  <h2>📜 Letzte Aktionen (letzte 2 Monate)</h2>
   <div id="historyList" class="history-list">
     <div style="text-align:center;padding:20px;color:#888;">📭 Keine Einträge vorhanden</div>
   </div>
@@ -331,20 +414,22 @@ function escapeHtml(str) {
   return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
 }
 
+// Formatiert Zeit in Minuten und Sekunden
+function formatTime(minutes) {
+  if (minutes < 1) {
+    const seconds = Math.round(minutes * 60);
+    return `${seconds} Sek.`;
+  }
+  const mins = Math.floor(minutes);
+  const secs = Math.round((minutes - mins) * 60);
+  if (secs === 0) return `${mins} min`;
+  return `${mins} min ${secs} sek`;
+}
+
 // Prüft ob ein Eintrag ein Bezahlvorgang ist (darf nicht in Statistik/Ranking)
 function isPaymentEntry(entry) {
   if (!entry || !entry.name) return false;
   return entry.name.includes('bezahlt') || entry.name.includes('Bezahlung') || entry.name.includes('entfernt');
-}
-
-// Extrahieren des Namens aus einem Eintrag (für Bezahlvorgänge)
-function extractRealName(entry) {
-  if (!entry || !entry.name) return null;
-  // Bei normalen Biereinträgen: name ist der Personenname
-  if (!entry.name.includes('bezahlt') && !entry.name.includes('Bezahlung') && !entry.name.includes('entfernt')) {
-    return entry.name;
-  }
-  return null;
 }
 
 // Filtert nur die Bier-Trink-Einträge (keine Bezahlungen)
@@ -352,9 +437,124 @@ function filterBeerEntries(historyArray) {
   if (!historyArray) return [];
   return historyArray.filter(entry => {
     if (!entry || !entry.name) return false;
-    // Nur Einträge ohne "bezahlt" und ohne "entfernt"
     return !entry.name.includes('bezahlt') && !entry.name.includes('entfernt') && !entry.name.includes('Bezahlung');
   });
+}
+
+// Filtert Einträge der letzten 2 Monate für den Verlauf
+function filterLastTwoMonths(historyArray) {
+  if (!historyArray) return [];
+  const now = new Date();
+  const twoMonthsAgo = new Date();
+  twoMonthsAgo.setMonth(now.getMonth() - 2);
+  
+  return historyArray.filter(entry => {
+    if (!entry?.time) return false;
+    const date = new Date(entry.time);
+    return !isNaN(date) && date >= twoMonthsAgo;
+  });
+}
+
+// Berechnet die schnellsten Zeiten zwischen zwei Bieren pro Person (nur > 2 Minuten)
+function getFastestDrinkTimes(historyArray) {
+  const beerEntries = filterBeerEntries(historyArray);
+  if (!beerEntries || beerEntries.length < 2) return [];
+  
+  const sortedEntries = [...beerEntries].sort((a, b) => new Date(a.time) - new Date(b.time));
+  const personTimes = {};
+  
+  for (let i = 0; i < sortedEntries.length; i++) {
+    const current = sortedEntries[i];
+    const currentName = current.name;
+    const currentTime = new Date(current.time);
+    
+    for (let j = i - 1; j >= 0; j--) {
+      if (sortedEntries[j].name === currentName) {
+        const prevTime = new Date(sortedEntries[j].time);
+        const diffMinutes = (currentTime - prevTime) / (1000 * 60);
+        
+        if (diffMinutes > 2) {
+          if (!personTimes[currentName]) personTimes[currentName] = [];
+          personTimes[currentName].push(diffMinutes);
+        }
+        break;
+      }
+    }
+  }
+  
+  const fastestTimes = [];
+  for (const [name, times] of Object.entries(personTimes)) {
+    if (times.length > 0) {
+      const fastest = Math.min(...times);
+      fastestTimes.push({ name, time: fastest, count: times.length });
+    }
+  }
+  
+  fastestTimes.sort((a, b) => a.time - b.time);
+  return fastestTimes.slice(0, 10);
+}
+
+// Berechnet die durchschnittliche Trinkdauer pro Person (nur innerhalb des gleichen Tages)
+function getAverageDrinkTimes(historyArray) {
+  const beerEntries = filterBeerEntries(historyArray);
+  if (!beerEntries || beerEntries.length < 2) return [];
+  
+  // Sortiere nach Person und Datum
+  const personDrinks = {};
+  
+  beerEntries.forEach(entry => {
+    if (!entry?.time || !entry?.name) return;
+    const date = new Date(entry.time);
+    if (isNaN(date)) return;
+    
+    const person = entry.name;
+    const dateKey = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`;
+    const timeMs = date.getTime();
+    
+    if (!personDrinks[person]) personDrinks[person] = [];
+    personDrinks[person].push({ dateKey, timeMs });
+  });
+  
+  // Berechne Zeiten zwischen aufeinanderfolgenden Bieren am gleichen Tag
+  const personIntervals = {};
+  
+  for (const [person, drinks] of Object.entries(personDrinks)) {
+    // Nach Zeit sortieren
+    drinks.sort((a, b) => a.timeMs - b.timeMs);
+    
+    const intervals = [];
+    for (let i = 1; i < drinks.length; i++) {
+      // Nur wenn am gleichen Tag
+      if (drinks[i].dateKey === drinks[i-1].dateKey) {
+        const diffMinutes = (drinks[i].timeMs - drinks[i-1].timeMs) / (1000 * 60);
+        if (diffMinutes > 0) {
+          intervals.push(diffMinutes);
+        }
+      }
+    }
+    
+    if (intervals.length > 0) {
+      const avgMinutes = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      personIntervals[person] = {
+        avg: avgMinutes,
+        count: intervals.length,
+        fastest: Math.min(...intervals),
+        slowest: Math.max(...intervals)
+      };
+    }
+  }
+  
+  // In Array umwandeln und nach Durchschnitt sortieren
+  const avgTimes = Object.entries(personIntervals).map(([name, data]) => ({
+    name,
+    avgTime: data.avg,
+    count: data.count,
+    fastest: data.fastest,
+    slowest: data.slowest
+  }));
+  
+  avgTimes.sort((a, b) => a.avgTime - b.avgTime);
+  return avgTimes;
 }
 
 function getAllTimeBeerCount(historyArray) {
@@ -417,7 +617,6 @@ function getWeeklyData(historyArray, weeks) {
   const consumption = new Array(weeks.length).fill(0);
   const perPerson = weeks.map(() => ({}));
   
-  // Nur Bier-Einträge verwenden (keine Bezahlungen)
   const beerEntries = filterBeerEntries(historyArray);
   if (!beerEntries) return { consumption, perPerson };
   
@@ -440,18 +639,83 @@ function getWeeklyData(historyArray, weeks) {
   return { consumption, perPerson };
 }
 
-// Verlauf anzeigen (mit Markierung für Bezahlvorgänge)
+// Speed Ranking anzeigen (Rekorde)
+function renderSpeedRanking(historyArray) {
+  const container = document.getElementById('speedRankingList');
+  if (!container) return;
+  
+  const fastestTimes = getFastestDrinkTimes(historyArray);
+  
+  if (fastestTimes.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">⚡ Keine Zeiten über 2 Minuten gefunden. Trinkt schneller! 🍺</div>';
+    return;
+  }
+  
+  let rankingHtml = '';
+  fastestTimes.forEach((item, index) => {
+    let rankClass = '';
+    let rankDisplay = `${index + 1}.`;
+    if (index === 0) rankClass = 'speed-rank-1';
+    else if (index === 1) rankClass = 'speed-rank-2';
+    else if (index === 2) rankClass = 'speed-rank-3';
+    
+    rankingHtml += `
+      <div class="speed-ranking-item">
+        <div class="speed-rank-number ${rankClass}">${rankDisplay}</div>
+        <div class="speed-rank-name">${escapeHtml(item.name)}</div>
+        <div class="speed-rank-time">${formatTime(item.time)} ${item.count > 1 ? `<span class="record-badge">🏆 Rekord</span>` : ''}</div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = rankingHtml;
+}
+
+// Durchschnittliche Trinkdauer anzeigen
+function renderAverageTimes(historyArray) {
+  const container = document.getElementById('avgTimeList');
+  if (!container) return;
+  
+  const avgTimes = getAverageDrinkTimes(historyArray);
+  
+  if (avgTimes.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">⏱️ Keine ausreichenden Daten für Durchschnittsberechnung (mind. 2 Biere am gleichen Tag nötig)</div>';
+    return;
+  }
+  
+  let rankingHtml = '';
+  avgTimes.forEach((item, index) => {
+    let rankClass = '';
+    let rankDisplay = `${index + 1}.`;
+    if (index === 0) rankClass = 'speed-rank-1';
+    else if (index === 1) rankClass = 'speed-rank-2';
+    else if (index === 2) rankClass = 'speed-rank-3';
+    
+    rankingHtml += `
+      <div class="speed-ranking-item">
+        <div class="speed-rank-number ${rankClass}">${rankDisplay}</div>
+        <div class="speed-rank-name">${escapeHtml(item.name)}</div>
+        <div class="speed-rank-time">${formatTime(item.avgTime)} <span class="avg-time">(Ø aus ${item.count} Messungen)</span></div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = rankingHtml;
+}
+
+// Verlauf anzeigen (nur letzte 2 Monate)
 function renderHistory(historyArray) {
   const container = document.getElementById('historyList');
   if (!container) return;
   
-  if (!historyArray || historyArray.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">📭 Keine Einträge vorhanden</div>';
+  const lastTwoMonths = filterLastTwoMonths(historyArray);
+  
+  if (!lastTwoMonths || lastTwoMonths.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">📭 Keine Einträge der letzten 2 Monate vorhanden</div>';
     return;
   }
   
-  // Neueste zuerst anzeigen
-  const reversedHistory = [...historyArray].reverse();
+  const reversedHistory = [...lastTwoMonths].reverse();
   
   container.innerHTML = reversedHistory.map(entry => {
     const date = new Date(entry.time);
@@ -629,6 +893,8 @@ function refreshUI(historyArray) {
   updateTotalDisplay(historyArray);
   renderWeeklyChart(historyArray);
   renderMonthlyChart(historyArray);
+  renderSpeedRanking(historyArray);
+  renderAverageTimes(historyArray);
   renderHistory(historyArray);
 }
 
