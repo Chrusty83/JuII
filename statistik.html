@@ -256,24 +256,59 @@ function escapeHtml(str) {
   return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
 }
 
-// ISO 8601 Kalenderwoche (Montag basiert)
+// ISO 8601 Kalenderwoche (Montag basiert) - korrekt implementiert
 function getISOWeek(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
-  const yearStart = new Date(d.getFullYear(), 0, 4);
-  const weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
-  return { year: d.getFullYear(), week: weekNo };
+  // Donnerstag der aktuellen Woche
+  const thursday = new Date(d);
+  thursday.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const year = thursday.getFullYear();
+  const firstThursday = new Date(year, 0, 4);
+  firstThursday.setDate(firstThursday.getDate() - ((firstThursday.getDay() + 6) % 7));
+  const week = Math.floor((thursday - firstThursday) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  return { year, week };
+}
+
+// Erster Tag (Montag) der KW
+function getMondayOfWeek(year, week) {
+  const firstJan = new Date(year, 0, 1);
+  const dayOfWeek = firstJan.getDay();
+  const daysToFirstMonday = (dayOfWeek === 1 ? 0 : (8 - dayOfWeek)) % 7;
+  const firstMonday = new Date(year, 0, 1 + daysToFirstMonday);
+  const monday = new Date(firstMonday);
+  monday.setDate(firstMonday.getDate() + (week - 1) * 7);
+  return monday;
 }
 
 function getWeekRange(year, week) {
-  const simple = new Date(year, 0, 4);
-  simple.setDate(simple.getDate() - (simple.getDay() + 6) % 7 + (week - 1) * 7);
-  const monday = new Date(simple);
+  const monday = getMondayOfWeek(year, week);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   const formatDate = (d) => `${d.getDate()}.${d.getMonth()+1}`;
   return `${formatDate(monday)} - ${formatDate(sunday)}`;
+}
+
+// Liefert die letzten 8 vollständigen Kalenderwochen (abgeschlossene Wochen)
+function getLast8Weeks() {
+  const today = new Date();
+  const weeks = [];
+  const seen = new Set();
+  
+  // Beginne mit der aktuellen Woche, aber nur wenn sie abgeschlossen ist? 
+  // Wir zeigen die letzten 8 Wochen inklusive der aktuellen an, sortiert aktuellste zuerst.
+  for (let i = 0; i < 20; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (i * 7));
+    const { year, week } = getISOWeek(date);
+    const key = `${year}-${week}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      weeks.push({ year, week, label: `KW${week}`, range: getWeekRange(year, week) });
+      if (weeks.length === 8) break;
+    }
+  }
+  return weeks;
 }
 
 function getAllTimeBeerCount(historyArray) {
@@ -295,26 +330,6 @@ function getCurrentMonthCount(historyArray) {
 function updateTotalDisplay(historyArray) {
   document.getElementById('totalBeerDisplay').innerHTML = `🍺 Aktueller Monat: ${getCurrentMonthCount(historyArray)} Biere`;
   document.getElementById('totalAllTimeDisplay').innerHTML = `📊 Alle Zeiten: ${getAllTimeBeerCount(historyArray)} Biere`;
-}
-
-// Liefert die letzten 8 Wochen als Array, beginnend mit der aktuellsten Woche
-function getLast8Weeks() {
-  const today = new Date();
-  const weeks = [];
-  const seen = new Set();
-  
-  for (let i = 0; i < 14; i++) { // Gehe etwas weiter zurück, um 8 einzigartige zu finden
-    const date = new Date(today);
-    date.setDate(today.getDate() - (i * 7));
-    const { year, week } = getISOWeek(date);
-    const key = `${year}-${week}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      weeks.push({ year, week, label: `KW${week}`, range: getWeekRange(year, week) });
-      if (weeks.length === 8) break;
-    }
-  }
-  return weeks;
 }
 
 function getWeeklyData(historyArray, weeks) {
