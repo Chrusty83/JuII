@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>JUII Bierdeckel</title>
+  <title>JUII Bierdeckel – Statistik</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   
   <style>
@@ -39,6 +39,18 @@
       border-radius: 60px;
       display: inline-block;
       margin-bottom: 15px;
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+    
+    .total-beer-alltime {
+      background: #5a3e2b;
+      color: #ffd966;
+      padding: 8px 20px;
+      border-radius: 60px;
+      display: inline-block;
+      margin-bottom: 15px;
+      margin-left: 10px;
       font-weight: bold;
       font-size: 1.1rem;
     }
@@ -93,8 +105,8 @@
       text-align: center;
       border: 1px solid #3a3a4a;
     }
-    .stat-month {
-      font-size: 1.2rem;
+    .stat-month, .stat-week {
+      font-size: 1rem;
       font-weight: bold;
       color: #ffd966;
       margin-bottom: 8px;
@@ -109,14 +121,23 @@
       color: #aaa;
       margin-top: 5px;
     }
-    #chartContainer {
+    #chartContainer, #weeklyChartContainer {
       background: #1a1a28;
       border-radius: 28px;
       padding: 16px;
       margin: 28px 0;
     }
-    canvas#beerChart { max-height: 320px; width: 100% !important; }
+    canvas#beerChart, canvas#weeklyChart { 
+      max-height: 320px; 
+      width: 100% !important; 
+    }
     h2 { margin: 1rem 0 0.75rem; color: #ffd966; }
+    .badge-container {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
 <body>
@@ -124,7 +145,10 @@
 <h1>🍺 JUII BIERDECKEL 🍺</h1>
 
 <div class="glass-card">
-  <div id="totalBeerDisplay" class="total-beer-badge">🍺 Gesamt: 0 Biere</div>
+  <div class="badge-container">
+    <div id="totalBeerDisplay" class="total-beer-badge">🍺 Aktueller Monat: 0 Biere</div>
+    <div id="totalAllTimeDisplay" class="total-beer-alltime">📊 Alle Zeiten: 0 Biere</div>
+  </div>
 </div>
 
 <div id="chartContainer">
@@ -150,6 +174,14 @@
   </div>
 </div>
 
+<div id="weeklyChartContainer">
+  <h2>📊 Bierkonsum pro Woche (letzte 8 Wochen)</h2>
+  <canvas id="weeklyChart" width="800" height="350"></canvas>
+  <div id="weekStats" class="stats-container" style="margin-top: 20px;">
+    <!-- Hier werden dynamisch die letzten 4 Wochen als Highlights angezeigt -->
+  </div>
+</div>
+
 <footer><span id="connectionStatus"></span></footer>
 
 <script>
@@ -168,6 +200,7 @@ let useFirebase = false;
 let mainDocRef = null;
 let unsubscribe = null;
 let beerChart = null;
+let weeklyChart = null;
 
 const STORAGE_KEY = "juii_bierdeckel_data";
 
@@ -185,17 +218,29 @@ function updateConnectionStatus(msg) {
   if (div) div.innerHTML = msg;
 }
 
-// ==================== GESAMTANZEIGE ====================
+// ==================== GESAMTANZEIGEN ====================
 function getTotalBeerCount(data) {
   if (!data || !data.beers) return 0;
   return data.beers;
 }
 
-function updateTotalDisplay(data) {
+function getAllTimeBeerCount(historyArray) {
+  if (!historyArray || !Array.isArray(historyArray)) return 0;
+  return historyArray.length;
+}
+
+function updateTotalDisplay(data, historyArray) {
   const totalDiv = document.getElementById('totalBeerDisplay');
+  const allTimeDiv = document.getElementById('totalAllTimeDisplay');
+  
   if (totalDiv) {
-    const total = getTotalBeerCount(data);
-    totalDiv.innerHTML = `🍺 Gesamt: ${total} ${total === 1 ? 'Bier' : 'Biere'}`;
+    const currentMonthCount = getCurrentMonthCount(historyArray);
+    totalDiv.innerHTML = `🍺 Aktueller Monat: ${currentMonthCount} ${currentMonthCount === 1 ? 'Bier' : 'Biere'}`;
+  }
+  
+  if (allTimeDiv) {
+    const allTime = getAllTimeBeerCount(historyArray);
+    allTimeDiv.innerHTML = `📊 Alle Zeiten: ${allTime} ${allTime === 1 ? 'Bier' : 'Biere'}`;
   }
 }
 
@@ -211,6 +256,51 @@ function showToast(message, isError = false) {
     toast.style.transition = 'opacity 0.3s';
     setTimeout(() => toast.remove(), 300);
   }, 2500);
+}
+
+// ==================== HELFER FÜR DATUM ====================
+function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return { year: d.getUTCFullYear(), week: weekNo };
+}
+
+function getWeekRange(year, week) {
+  const simple = new Date(year, 0, 1 + (week - 1) * 7);
+  const dayOfWeek = simple.getDay();
+  const monday = new Date(simple);
+  if (dayOfWeek <= 1) {
+    monday.setDate(simple.getDate() - dayOfWeek + 1);
+  } else {
+    monday.setDate(simple.getDate() + 8 - dayOfWeek);
+  }
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const formatDate = (d) => `${d.getDate()}.${d.getMonth()+1}`;
+  return `${formatDate(monday)} - ${formatDate(sunday)}`;
+}
+
+function getCurrentMonthCount(historyArray) {
+  if (!historyArray || !Array.isArray(historyArray)) return 0;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  
+  let count = 0;
+  historyArray.forEach(entry => {
+    if (entry?.time) {
+      const date = new Date(entry.time);
+      if (!isNaN(date.getTime()) && 
+          date.getFullYear() === currentYear && 
+          date.getMonth() + 1 === currentMonth) {
+        count++;
+      }
+    }
+  });
+  return count;
 }
 
 // ==================== MONATSÜBERSICHT ====================
@@ -258,6 +348,108 @@ function updateMonthStats(historyArray) {
   document.getElementById('twoMonthsAgoCount').innerText = counts[2];
 }
 
+// ==================== WOCHENÜBERSICHT (letzte 8 Wochen) ====================
+function getLast8Weeks() {
+  const weeks = [];
+  const now = new Date();
+  
+  for (let i = 7; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(now.getDate() - (i * 7));
+    const { year, week } = getWeekNumber(date);
+    weeks.push({ year, week, label: `KW${week} ${year}`, range: getWeekRange(year, week) });
+  }
+  return weeks;
+}
+
+function getWeeklyConsumption(historyArray, weeks) {
+  const consumption = new Array(weeks.length).fill(0);
+  
+  if (!historyArray || !Array.isArray(historyArray)) return consumption;
+  
+  historyArray.forEach(entry => {
+    if (entry?.time) {
+      const date = new Date(entry.time);
+      if (!isNaN(date.getTime())) {
+        const { year, week } = getWeekNumber(date);
+        
+        for (let i = 0; i < weeks.length; i++) {
+          if (weeks[i].year === year && weeks[i].week === week) {
+            consumption[i]++;
+            break;
+          }
+        }
+      }
+    }
+  });
+  
+  return consumption;
+}
+
+function renderWeeklyChart(historyArray) {
+  const weeks = getLast8Weeks();
+  const weeklyData = getWeeklyConsumption(historyArray, weeks);
+  
+  const ctx = document.getElementById('weeklyChart').getContext('2d');
+  if (weeklyChart) weeklyChart.destroy();
+  
+  weeklyChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: weeks.map(w => w.label),
+      datasets: [{
+        label: '🍺 Biere pro Woche',
+        data: weeklyData,
+        backgroundColor: '#5a9e4e',
+        borderRadius: 10
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { 
+        legend: { labels: { color: '#fff' } },
+        tooltip: {
+          callbacks: {
+            afterLabel: (context) => {
+              const week = weeks[context.dataIndex];
+              return `📅 ${week.range}`;
+            }
+          }
+        }
+      },
+      scales: { 
+        y: { 
+          ticks: { color: '#ddd' },
+          title: { display: true, text: 'Anzahl Biere', color: '#aaa' }
+        }, 
+        x: { 
+          ticks: { color: '#ffd966', rotation: 45, maxRotation: 45 },
+          title: { display: true, text: 'Kalenderwoche', color: '#aaa' }
+        } 
+      }
+    }
+  });
+  
+  // Zeige die letzten 4 Wochen als Highlight-Karten an
+  const weekStatsContainer = document.getElementById('weekStats');
+  if (weekStatsContainer) {
+    weekStatsContainer.innerHTML = '';
+    const last4Weeks = weeks.slice(-4);
+    const last4Data = weeklyData.slice(-4);
+    
+    last4Weeks.forEach((week, idx) => {
+      const card = document.createElement('div');
+      card.className = 'stat-card';
+      card.innerHTML = `
+        <div class="stat-week">${week.label}</div>
+        <div class="stat-count">${last4Data[idx]}</div>
+        <div class="stat-label">🍺 Biere<br><span style="font-size: 0.7rem;">${week.range}</span></div>
+      `;
+      weekStatsContainer.appendChild(card);
+    });
+  }
+}
+
 // ==================== MONATS-CHART RENDERN ====================
 function renderMonthlyChart(historyArray) {
   const months = new Map();
@@ -303,25 +495,17 @@ function renderMonthlyChart(historyArray) {
   updateMonthStats(historyArray);
 }
 
-// ==================== LOCALSTORAGE FUNKTIONEN ====================
-function loadLocalData() {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored ? JSON.parse(stored) : null;
-}
-
-function saveLocalData(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
 // ==================== UI AKTUALISIEREN ====================
-function refreshUI() {
+function refreshUI(historyArray) {
   if (useFirebase && mainDocRef) {
     import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js").then(({ getDoc }) => {
       getDoc(mainDocRef).then(snap => {
         if (snap.exists()) {
           const data = snap.data();
-          updateTotalDisplay(data);
-          renderMonthlyChart(data.history || []);
+          const history = data.history || [];
+          updateTotalDisplay(data, history);
+          renderMonthlyChart(history);
+          renderWeeklyChart(history);
         }
       });
     });
@@ -331,9 +515,61 @@ function refreshUI() {
       data = { beers: 0, history: [] };
       saveLocalData(data);
     }
-    updateTotalDisplay(data);
-    renderMonthlyChart(data.history || []);
+    const history = data.history || [];
+    updateTotalDisplay(data, history);
+    renderMonthlyChart(history);
+    renderWeeklyChart(history);
   }
+}
+
+function updateTotalDisplay(data, historyArray) {
+  const totalDiv = document.getElementById('totalBeerDisplay');
+  const allTimeDiv = document.getElementById('totalAllTimeDisplay');
+  
+  if (totalDiv) {
+    const currentMonthCount = getCurrentMonthCount(historyArray);
+    totalDiv.innerHTML = `🍺 Aktueller Monat: ${currentMonthCount} ${currentMonthCount === 1 ? 'Bier' : 'Biere'}`;
+  }
+  
+  if (allTimeDiv) {
+    const allTime = getAllTimeBeerCount(historyArray);
+    allTimeDiv.innerHTML = `📊 Alle Zeiten: ${allTime} ${allTime === 1 ? 'Bier' : 'Biere'}`;
+  }
+}
+
+function getAllTimeBeerCount(historyArray) {
+  if (!historyArray || !Array.isArray(historyArray)) return 0;
+  return historyArray.length;
+}
+
+function getCurrentMonthCount(historyArray) {
+  if (!historyArray || !Array.isArray(historyArray)) return 0;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  
+  let count = 0;
+  historyArray.forEach(entry => {
+    if (entry?.time) {
+      const date = new Date(entry.time);
+      if (!isNaN(date.getTime()) && 
+          date.getFullYear() === currentYear && 
+          date.getMonth() + 1 === currentMonth) {
+        count++;
+      }
+    }
+  });
+  return count;
+}
+
+// ==================== LOCALSTORAGE FUNKTIONEN ====================
+function loadLocalData() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  return stored ? JSON.parse(stored) : null;
+}
+
+function saveLocalData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
 // ==================== FIREBASE INITIALISIERUNG ====================
@@ -348,20 +584,25 @@ async function initFirebase() {
     const testSnap = await getDoc(mainDocRef);
     if (!testSnap.exists()) {
       const emptyData = { beers: 0, history: [] };
-      updateTotalDisplay(emptyData);
+      updateTotalDisplay(emptyData, []);
       renderMonthlyChart([]);
+      renderWeeklyChart([]);
     } else {
       const data = testSnap.data();
-      updateTotalDisplay(data);
-      renderMonthlyChart(data.history || []);
+      const history = data.history || [];
+      updateTotalDisplay(data, history);
+      renderMonthlyChart(history);
+      renderWeeklyChart(history);
     }
     updateConnectionStatus('✅ Firebase verbunden (Live-Synchronisation)');
     useFirebase = true;
     unsubscribe = onSnapshot(mainDocRef, (snapshot) => {
       if (snapshot.exists()) {
         const snapData = snapshot.data();
-        updateTotalDisplay(snapData);
-        renderMonthlyChart(snapData.history || []);
+        const history = snapData.history || [];
+        updateTotalDisplay(snapData, history);
+        renderMonthlyChart(history);
+        renderWeeklyChart(history);
       }
     });
     return true;
@@ -381,8 +622,10 @@ function renderLocalData() {
     data = { beers: 0, history: [] };
     saveLocalData(data);
   }
-  updateTotalDisplay(data);
-  renderMonthlyChart(data.history || []);
+  const history = data.history || [];
+  updateTotalDisplay(data, history);
+  renderMonthlyChart(history);
+  renderWeeklyChart(history);
   updateConnectionStatus('💾 Lokaler Speicher (Offline-Modus)');
 }
 
