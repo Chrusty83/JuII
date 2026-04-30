@@ -256,26 +256,11 @@ function escapeHtml(str) {
   return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
 }
 
-// Gibt den Montag einer Woche zurück (KW, Jahr)
-function getMondayOfWeek(year, week) {
-  // Erster Tag des Jahres
-  const firstJan = new Date(year, 0, 1);
-  // Verschiebe zum ersten Montag des Jahres
-  const firstMonday = new Date(firstJan);
-  const dayOfWeek = firstJan.getDay();
-  const daysToMonday = (dayOfWeek === 1 ? 0 : (8 - dayOfWeek)) % 7;
-  firstMonday.setDate(firstJan.getDate() + daysToMonday);
-  // Berechne den Montag der gewünschten Woche
-  const monday = new Date(firstMonday);
-  monday.setDate(firstMonday.getDate() + (week - 1) * 7);
-  return monday;
-}
-
-// Berechnet die Kalenderwoche (ISO-kompatibel: Montag bis Sonntag)
+// Berechnet die Kalenderwoche (ISO 8601: Montag bis Sonntag)
 function getWeekNumber(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  // Donnerstag der aktuellen Woche bestimmen (ISO: Woche gehört zum Jahr des Donnerstags)
+  // Donnerstag der aktuellen Woche bestimmen
   const thursday = new Date(d);
   thursday.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
   const year = thursday.getFullYear();
@@ -284,6 +269,17 @@ function getWeekNumber(date) {
   firstThursday.setDate(firstThursday.getDate() - ((firstThursday.getDay() + 6) % 7));
   const week = Math.floor((thursday - firstThursday) / (7 * 24 * 60 * 60 * 1000)) + 1;
   return { year, week };
+}
+
+// Gibt den Montag einer KW zurück
+function getMondayOfWeek(year, week) {
+  const firstJan = new Date(year, 0, 1);
+  const dayOfWeek = firstJan.getDay();
+  const daysToFirstMonday = (dayOfWeek === 1 ? 0 : (8 - dayOfWeek)) % 7;
+  const firstMonday = new Date(year, 0, 1 + daysToFirstMonday);
+  const monday = new Date(firstMonday);
+  monday.setDate(firstMonday.getDate() + (week - 1) * 7);
+  return monday;
 }
 
 // Gibt den Zeitraum (Montag - Sonntag) für eine KW zurück
@@ -295,12 +291,13 @@ function getWeekRange(year, week) {
   return `${formatDate(monday)} - ${formatDate(sunday)}`;
 }
 
-// Liefert die letzten 8 Wochen (aktuelle Woche zuerst)
+// Liefert die letzten 8 Wochen (aktuelle Woche zuerst, absteigend)
 function getLast8Weeks() {
   const today = new Date();
   const weeks = [];
   const seen = new Set();
   
+  // Gehe von der aktuellen Woche rückwärts, sammle einzigartige Wochen
   for (let i = 0; i < 20; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() - (i * 7));
