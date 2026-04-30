@@ -69,6 +69,13 @@
       min-width: 100px;
       text-align: center;
       border: 1px solid #3a3a4a;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .stat-card.current-week {
+      background: linear-gradient(135deg, #3a3a5a, #2a2a4a);
+      border: 2px solid #f9b43a;
+      box-shadow: 0 0 15px rgba(249, 180, 58, 0.3);
+      transform: scale(1.02);
     }
     .stat-month, .stat-week {
       font-size: 0.9rem;
@@ -122,6 +129,12 @@
       padding: 16px;
       margin-bottom: 24px;
       border-left: 4px solid #f9b43a;
+      transition: all 0.2s;
+    }
+    .ranking-week.current-week {
+      background: linear-gradient(135deg, #2a2a4a, #1e1e3a);
+      border-left: 4px solid #ffd700;
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
     }
     .ranking-week-title {
       font-size: 1.2rem;
@@ -131,6 +144,10 @@
       text-align: left;
       padding-bottom: 8px;
       border-bottom: 1px solid #3a3a4a;
+    }
+    .ranking-week.current-week .ranking-week-title {
+      color: #ffd700;
+      font-size: 1.3rem;
     }
     .ranking-list {
       display: flex;
@@ -291,6 +308,13 @@ function getLast8Weeks() {
   return weeks;
 }
 
+// Prüft ob eine Woche die aktuelle Woche ist
+function isCurrentWeek(week, year) {
+  const today = new Date();
+  const { year: currentYear, week: currentWeek } = getWeekNumber(today);
+  return year === currentYear && week === currentWeek;
+}
+
 function getAllTimeBeerCount(historyArray) {
   return historyArray?.length || 0;
 }
@@ -341,6 +365,9 @@ function renderWeeklyChart(historyArray) {
   const weeks = getLast8Weeks();
   const { consumption, perPerson } = getWeeklyData(historyArray, weeks);
   
+  // Chart mit Hervorhebung der aktuellen Woche
+  const currentWeekIndex = 0; // Erste Woche ist die aktuelle
+  
   const ctx = document.getElementById('weeklyChart').getContext('2d');
   if (weeklyChart) weeklyChart.destroy();
   weeklyChart = new Chart(ctx, {
@@ -350,8 +377,10 @@ function renderWeeklyChart(historyArray) {
       datasets: [{
         label: '🍺 Biere pro Woche',
         data: consumption,
-        backgroundColor: '#5a9e4e',
-        borderRadius: 10
+        backgroundColor: weeks.map((_, idx) => idx === currentWeekIndex ? '#ffd700' : '#5a9e4e'),
+        borderRadius: 10,
+        borderWidth: weeks.map((_, idx) => idx === currentWeekIndex ? 2 : 0),
+        borderColor: weeks.map((_, idx) => idx === currentWeekIndex ? '#fff' : 'transparent')
       }]
     },
     options: {
@@ -366,18 +395,22 @@ function renderWeeklyChart(historyArray) {
     }
   });
   
+  // Wochenkarten mit Hervorhebung
   const container = document.getElementById('weekStats');
   if (container) {
-    container.innerHTML = weeks.map((week, idx) => `
-      <div class="stat-card">
-        <div class="stat-week"><strong>${week.label}</strong></div>
-        <div class="stat-count">${consumption[idx]}</div>
-        <div class="stat-label">🍺 Biere</div>
-      </div>
-    `).join('');
+    container.innerHTML = weeks.map((week, idx) => {
+      const isCurrent = idx === 0;
+      return `
+        <div class="stat-card ${isCurrent ? 'current-week' : ''}">
+          <div class="stat-week"><strong>${week.label}</strong></div>
+          <div class="stat-count">${consumption[idx]}</div>
+          <div class="stat-label">🍺 Biere</div>
+        </div>
+      `;
+    }).join('');
   }
   
-  // Ranking rendern
+  // Ranking mit Hervorhebung der aktuellen Woche
   const rankingContainer = document.getElementById('weeklyRanking');
   if (rankingContainer) {
     rankingContainer.innerHTML = weeks.map((week, idx) => {
@@ -387,9 +420,10 @@ function renderWeeklyChart(historyArray) {
         .slice(0, 3);
       const rankIcons = ['🥇', '🥈', '🥉'];
       const rankColors = ['rank-1', 'rank-2', 'rank-3'];
+      const isCurrent = idx === 0;
       
-      let rankingHtml = `<div class="ranking-week">
-        <div class="ranking-week-title">🏆 ${week.label}</div>
+      let rankingHtml = `<div class="ranking-week ${isCurrent ? 'current-week' : ''}">
+        <div class="ranking-week-title">🏆 ${week.label} ${isCurrent ? '🔥 AKTUELLE WOCHE' : ''}</div>
         <div class="ranking-list">`;
       
       if (ranking.length === 0) {
