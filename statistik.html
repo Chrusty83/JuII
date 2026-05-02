@@ -292,6 +292,15 @@
       margin-left: 10px;
       font-weight: bold;
     }
+    .open-beer-badge {
+      background: #c44536;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-left: 10px;
+      font-size: 0.7rem;
+      font-weight: bold;
+    }
     .monthly-top-container {
       background: #1a1a28;
       border-radius: 28px;
@@ -351,6 +360,22 @@
     .history-beer-icon {
       font-size: 1.1rem;
     }
+    .download-btn {
+      background: #2e7d64;
+      color: white;
+      padding: 12px 30px;
+      border: none;
+      border-radius: 40px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 20px 0;
+      transition: transform 0.2s, opacity 0.2s;
+    }
+    .download-btn:hover {
+      transform: scale(1.02);
+      opacity: 0.9;
+    }
     footer {
       font-size: 11px;
       margin-top: 30px;
@@ -393,7 +418,6 @@
     </div>
   </div>
 </div>
-<!-- Top 3 Biertrinker pro Monat -->
 <div class="monthly-top-container">
   <h2>📅 Top 3 Biertrinker des aktuellen Monats</h2>
   <div id="monthlyTopList" class="monthly-top-list"><div style="text-align:center;padding:20px;color:#888;">📊 Berechne Top-Trinker...</div></div>
@@ -401,6 +425,11 @@
 <div class="ranking-container">
   <h2>🏆 Top 3 Biertrinker pro Woche</h2>
   <div id="weeklyRanking"></div>
+</div>
+<!-- Ranking: Längste Zeit bis zur Bezahlung (inkl. offener Schulden) -->
+<div class="speed-ranking-container">
+  <h2>🐌 Wer braucht am längsten zum Bezahlen? (Schulden-Ranking) 🐌</h2>
+  <div id="slowestPayersList" class="speed-ranking-list"><div style="text-align:center;padding:20px;color:#888;">📊 Berechne Zahlungsverzögerungen...</div></div>
 </div>
 <div class="stats-grid">
   <div class="stat-block">
@@ -431,6 +460,9 @@
   <h2>📜 Letzte Aktionen (letzte 2 Monate)</h2>
   <div id="historyList" class="history-list"><div style="text-align:center;padding:20px;color:#888;">📭 Keine Einträge vorhanden</div></div>
 </div>
+<div class="glass-card">
+  <button id="downloadCsvBtn" class="download-btn">📥 Datenbank als CSV herunterladen</button>
+</div>
 <footer><span id="connectionStatus"></span></footer>
 <script>
 const FIREBASE_CONFIG = {
@@ -441,11 +473,12 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "8081599971",
   appId: "1:8081599971:web:6cc277281b040d995304d6"
 };
-let useFirebase = false, mainDocRef = null, unsubscribe = null, beerChart = null, weeklyChart = null;
+let useFirebase = false, mainDocRef = null, unsubscribe = null, beerChart = null, weeklyChart = null, currentHistory = [], currentStrichliste = {};
 const STORAGE_KEY = "juii_bierdeckel_data", NAMES = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 function updateConnectionStatus(msg) { const div = document.getElementById('connectionStatus'); if (div) div.innerHTML = msg; }
 function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
-function formatTime(minutes) { if (minutes < 1) return Math.round(minutes * 60) + " Sek."; const mins = Math.floor(minutes), secs = Math.round((minutes - mins) * 60); return secs === 0 ? mins + " min" : mins + " min " + secs + " sek"; }
+function formatTime(minutes) { if (minutes < 1) return Math.round(minutes * 60) + " Sek."; if (minutes < 60) return Math.round(minutes) + " min"; const hours = Math.floor(minutes / 60); const mins = Math.round(minutes % 60); return hours + " h " + mins + " min"; }
+function formatDaysHours(days) { if (days < 1) return formatTime(days * 24 * 60); if (days < 7) return Math.round(days) + " Tage"; const weeks = Math.floor(days / 7); const restDays = Math.round(days % 7); return weeks + " Woche(n) " + (restDays > 0 ? restDays + " Tage" : ""); }
 function isPaymentEntry(entry) { return entry?.name && (entry.name.includes('bezahlt') || entry.name.includes('Bezahlung') || entry.name.includes('entfernt')); }
 function filterBeerEntries(historyArray) { return historyArray?.filter(e => e?.name && !e.name.includes('bezahlt') && !e.name.includes('entfernt') && !e.name.includes('Bezahlung')) || []; }
 function filterLastTwoMonths(historyArray) { const now = new Date(), twoMonthsAgo = new Date(); twoMonthsAgo.setMonth(now.getMonth() - 2); return historyArray?.filter(e => e?.time && new Date(e.time) >= twoMonthsAgo) || []; }
@@ -455,9 +488,19 @@ function getWeeklyData(historyArray, weeks) { const consumption = new Array(week
 function getFastestDrinkTimes(historyArray) { const beerEntries = filterBeerEntries(historyArray); if (beerEntries.length < 2) return []; const sortedEntries = [...beerEntries].sort((a, b) => new Date(a.time) - new Date(b.time)), personTimes = {}; for (let i = 0; i < sortedEntries.length; i++) { const current = sortedEntries[i], currentTime = new Date(current.time); for (let j = i - 1; j >= 0; j--) { if (sortedEntries[j].name === current.name) { const diff = (currentTime - new Date(sortedEntries[j].time)) / (1000 * 60); if (diff > 2) { personTimes[current.name] = personTimes[current.name] || []; personTimes[current.name].push(diff); } break; } } } return Object.entries(personTimes).map(([n, t]) => ({ name: n, time: Math.min(...t) })).sort((a, b) => a.time - b.time).slice(0, 10); }
 function getAverageDrinkTimes(historyArray) { const beerEntries = filterBeerEntries(historyArray); if (beerEntries.length < 2) return []; const personDrinks = {}; beerEntries.forEach(entry => { const date = new Date(entry.time); if (isNaN(date)) return; const dateKey = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`; personDrinks[entry.name] = personDrinks[entry.name] || []; personDrinks[entry.name].push({ dateKey, timeMs: date.getTime() }); }); const result = []; for (const [name, drinks] of Object.entries(personDrinks)) { drinks.sort((a, b) => a.timeMs - b.timeMs); const intervals = []; for (let i = 1; i < drinks.length; i++) if (drinks[i].dateKey === drinks[i-1].dateKey) { const diff = (drinks[i].timeMs - drinks[i-1].timeMs) / (1000 * 60); if (diff > 0) intervals.push(diff); } if (intervals.length) result.push({ name, avgTime: intervals.reduce((a, b) => a + b, 0) / intervals.length, count: intervals.length }); } return result.sort((a, b) => a.avgTime - b.avgTime); }
 function getMonthlyTopDrinkers(historyArray) { const beers = filterBeerEntries(historyArray); if (!beers.length) return []; const now = new Date(), currentMonth = now.getMonth(), currentYear = now.getFullYear(); const monthlyCount = {}; beers.forEach(e => { const d = new Date(e.time); if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) { monthlyCount[e.name] = (monthlyCount[e.name] || 0) + 1; } }); return Object.entries(monthlyCount).sort((a,b) => b[1] - a[1]).slice(0, 3); }
+// Verbesserte Funktion: Längste Zeit bis zur Bezahlung (inkl. offener Schulden)
+function getSlowestPayers(historyArray, currentStrichliste) { if (!historyArray) return []; const payments = []; const now = new Date();
+// 1. Bereits abgeschlossene Bezahlungen (nicht am gleichen Tag)
+for (let i = 0; i < historyArray.length; i++) { const entry = historyArray[i]; if (isPaymentEntry(entry)) { let person = null; const paymentMatch = entry.name.match(/([A-Za-z\s\.]+?)\s*\(bezahlt:/); if (paymentMatch) person = paymentMatch[1].trim(); if (!person) { const simpleMatch = entry.name.match(/^([A-Za-z\s\.]+?)\s*\(/); if (simpleMatch) person = simpleMatch[1].trim(); } if (person) { const paymentTime = new Date(entry.time); let lastBeerTime = null; for (let j = i - 1; j >= 0; j--) { if (!isPaymentEntry(historyArray[j]) && historyArray[j].name === person) { lastBeerTime = new Date(historyArray[j].time); break; } } if (lastBeerTime && paymentTime > lastBeerTime) { const diffDays = (paymentTime - lastBeerTime) / (1000 * 60 * 60 * 24); const sameDay = lastBeerTime.toDateString() === paymentTime.toDateString(); if (diffDays > 0 && !sameDay) { payments.push({ name: person, days: diffDays, lastBeer: lastBeerTime, isOpen: false, count: 1 }); } } } } }
+// 2. Aktuell offene Bezahlungen (Personen mit Bier auf der Strichliste)
+for (const [person, beerCount] of Object.entries(currentStrichliste)) { if (beerCount > 0) { let lastBeerTime = null; for (let i = historyArray.length - 1; i >= 0; i--) { if (!isPaymentEntry(historyArray[i]) && historyArray[i].name === person) { lastBeerTime = new Date(historyArray[i].time); break; } } if (lastBeerTime) { const diffDays = (now - lastBeerTime) / (1000 * 60 * 60 * 24); if (diffDays > 0) { payments.push({ name: person, days: diffDays, lastBeer: lastBeerTime, isOpen: true, count: beerCount }); } } } }
+const personMap = {}; for (const p of payments) { if (!personMap[p.name] || p.days > personMap[p.name].days) { personMap[p.name] = p; } }
+let result = Object.values(personMap).sort((a, b) => b.days - a.days).slice(0, 10); return result; }
 function getAllTimeBeerCount(historyArray) { return filterBeerEntries(historyArray).length; }
 function getCurrentMonthCount(historyArray) { const now = new Date(); return filterBeerEntries(historyArray).filter(e => { const d = new Date(e.time); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); }).length; }
 function updateTotalDisplay(historyArray) { document.getElementById('totalBeerDisplay').innerHTML = `🍺 Aktueller Monat: ${getCurrentMonthCount(historyArray)} Biere`; document.getElementById('totalAllTimeDisplay').innerHTML = `📊 Alle Zeiten: ${getAllTimeBeerCount(historyArray)} Biere`; }
+function downloadCSV(historyArray, strichliste) { if (!historyArray || historyArray.length === 0) { alert("Keine Daten zum Herunterladen vorhanden!"); return; } let csvRows = []; csvRows.push(["=== AKTUELLER STRICHLISTEN-STAND ==="]); csvRows.push(["Name", "Anzahl Biere", "Kosten (€)"]); const sortedNames = Object.keys(strichliste).sort(); for (const name of sortedNames) { const count = strichliste[name] || 0; const kosten = (count * 2).toFixed(2); csvRows.push([name, count, kosten]); } csvRows.push([]); csvRows.push(["=== VERLAUF (ALLE AKTIONEN) ==="]); csvRows.push(["Aktion", "Name/Details", "Zeitpunkt (ISO)", "Zeitpunkt (lokal)"]); for (const entry of historyArray) { const date = new Date(entry.time); const localTime = date.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }); const aktion = (entry.name.includes('bezahlt') || entry.name.includes('entfernt')) ? "BEZAHLUNG/ENTFERNUNG" : "BIER"; csvRows.push([aktion, entry.name, entry.time, localTime]); } const csvContent = csvRows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\n'); const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" }); const link = document.createElement("a"); const url = URL.createObjectURL(blob); link.setAttribute("href", url); link.setAttribute("download", `bierdaten_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.csv`); link.style.visibility = "hidden"; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url); }
+function renderSlowestPayers(historyArray, strichliste) { const container = document.getElementById('slowestPayersList'); const slowest = getSlowestPayers(historyArray, strichliste); if (!slowest.length) { container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">🐌 Keine Zahlungsverzögerungen oder offenen Schulden gefunden 🐌</div>'; return; } container.innerHTML = slowest.map((p, i) => { let rankIcon = i === 0 ? '🐌👑' : i === 1 ? '🥈🐌' : i === 2 ? '🥉🐌' : '🐌'; let rankClass = i === 0 ? 'speed-rank-1' : i === 1 ? 'speed-rank-2' : i === 2 ? 'speed-rank-3' : ''; const statusText = p.isOpen ? `<span class="open-beer-badge">⚠️ ${p.count} offene(s) Bier - UNBEZAHLT!</span>` : '<span class="avg-time" style="color:#5a9e4e;">✓ Bezahlt</span>'; const statusEmoji = p.isOpen ? '🔄 OFFEN' : '✅ BEZAHLT'; return `<div class="speed-ranking-item"><div class="speed-rank-number ${rankClass}" style="font-size:1.5rem;">${rankIcon}</div><div class="speed-rank-name">${escapeHtml(p.name)}</div><div class="speed-rank-time">⏰ ${formatDaysHours(p.days)}</div><div class="speed-rank-time" style="background:#3a3a4a; font-size:0.9rem;">${statusEmoji}</div><div class="avg-time" style="font-size:0.7rem;">(letztes Bier: ${p.lastBeer.toLocaleDateString('de-DE')})</div></div>`; }).join(''); }
 function renderSpeedRanking(historyArray) { const container = document.getElementById('speedRankingList'); const fastest = getFastestDrinkTimes(historyArray); if (!fastest.length) { container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">⚡ Keine Zeiten über 2 Minuten gefunden</div>'; return; } container.innerHTML = fastest.map((f, i) => `<div class="speed-ranking-item"><div class="speed-rank-number${i===0?' speed-rank-1':i===1?' speed-rank-2':i===2?' speed-rank-3':''}">${i+1}.</div><div class="speed-rank-name">${escapeHtml(f.name)}</div><div class="speed-rank-time">${formatTime(f.time)}</div></div>`).join(''); }
 function renderAverageTimes(historyArray) { const container = document.getElementById('avgTimeList'); const avg = getAverageDrinkTimes(historyArray); if (!avg.length) { container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">⏱️ Keine ausreichenden Daten (mind. 2 Biere am gleichen Tag)</div>'; return; } container.innerHTML = avg.map((a, i) => `<div class="speed-ranking-item"><div class="speed-rank-number${i===0?' speed-rank-1':i===1?' speed-rank-2':i===2?' speed-rank-3':''}">${i+1}.</div><div class="speed-rank-name">${escapeHtml(a.name)}</div><div class="speed-rank-time">${formatTime(a.avgTime)} <span class="avg-time">(Ø ${a.count})</span></div></div>`).join(''); }
 function renderMonthlyTopDrinkers(historyArray) { const container = document.getElementById('monthlyTopList'); const top = getMonthlyTopDrinkers(historyArray); if (!top.length) { container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">📊 Keine Daten für aktuellen Monat</div>'; return; } const icons = ['🥇', '🥈', '🥉']; container.innerHTML = top.map(([name, count], i) => `<div class="speed-ranking-item"><div class="speed-rank-number" style="font-size:1.5rem;">${icons[i]}</div><div class="speed-rank-name">${escapeHtml(name)}</div><div class="speed-rank-time">${count} 🍺</div></div>`).join(''); }
@@ -465,10 +508,11 @@ function renderHistory(historyArray) { const container = document.getElementById
 function renderWeeklyChart(historyArray) { const weeks = getLast8Weeks(), { consumption, perPerson } = getWeeklyData(historyArray, weeks); if (weeklyChart) weeklyChart.destroy(); weeklyChart = new Chart(document.getElementById('weeklyChart'), { type: 'bar', data: { labels: weeks.map(w => w.label), datasets: [{ label: '🍺 Biere pro Woche', data: consumption, backgroundColor: weeks.map((_, i) => i === 0 ? '#ffd700' : '#5a9e4e'), borderRadius: 10 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#fff' } } }, scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966', rotation: 45 } } } } }); document.getElementById('weekStats').innerHTML = weeks.map((w, i) => `<div class="stat-card${i===0?' current-week':''}"><div class="stat-week"><strong>${w.label}</strong></div><div class="stat-count">${consumption[i]}</div><div class="stat-label">🍺 Biere</div></div>`).join(''); document.getElementById('weeklyRanking').innerHTML = weeks.map((w, i) => { const ranking = Object.entries(perPerson[i]).sort((a,b)=>b[1]-a[1]).slice(0,3); return `<div class="ranking-week${i===0?' current-week':''}"><div class="ranking-week-title">🏆 ${w.label}${i===0?' 🔥 AKTUELLE WOCHE':''}</div><div class="ranking-list">${ranking.length ? ranking.map(([n,c],idx)=>`<div class="ranking-item"><div class="rank-number rank-${idx+1}">${idx===0?'🥇':idx===1?'🥈':'🥉'}</div><div class="rank-name">${escapeHtml(n)}</div><div class="rank-count">${c} 🍺</div></div>`).join('') : '<div style="text-align:center;padding:15px;color:#888;">🍺 Keine Biere</div>'}</div></div>`; }).join(''); }
 function renderMonthlyChart(historyArray) { const months = new Map(); filterBeerEntries(historyArray).forEach(e => { const d = new Date(e.time); if (!isNaN(d)) months.set(`${d.getMonth()+1}/${d.getFullYear()}`, (months.get(`${d.getMonth()+1}/${d.getFullYear()}`) || 0) + 1); }); const sorted = Array.from(months.keys()).sort((a,b) => { let [mA,yA]=a.split('/'),[mB,yB]=b.split('/'); return (yA-yB) || (mA-mB); }), monthNames = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez']; if (beerChart) beerChart.destroy(); beerChart = new Chart(document.getElementById('beerChart'), { type: 'bar', data: { labels: sorted.map(l => { let [m,y]=l.split('/'); return monthNames[parseInt(m)-1]+" "+y; }), datasets: [{ label: '🍺 Biere/Monat', data: sorted.map(l => months.get(l)), backgroundColor: '#f9b43a', borderRadius: 12 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#fff' } } }, scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966', rotation: 45 } } } } }); const now = new Date(), targets = [[now.getFullYear(), now.getMonth()+1, 'currentMonthCount', 'currentMonthLabel'],[now.getMonth()===0?now.getFullYear()-1:now.getFullYear(), now.getMonth()===0?12:now.getMonth(), 'lastMonthCount', 'lastMonthLabel'],[now.getMonth()<=1?now.getFullYear()-1:now.getFullYear(), now.getMonth()===0?11:(now.getMonth()===1?12:now.getMonth()-1), 'twoMonthsAgoCount', 'twoMonthsAgoLabel']]; targets.forEach(([y,m,id,labelId]) => { document.getElementById(labelId).innerText = new Date(y,m-1,1).toLocaleString('de-DE',{month:'long',year:'numeric'}); let cnt = 0; filterBeerEntries(historyArray).forEach(e => { const d = new Date(e.time); if (d.getFullYear()===y && d.getMonth()+1===m) cnt++; }); document.getElementById(id).innerText = cnt; }); }
 function renderExtraStats(historyArray) { const beers = filterBeerEntries(historyArray); if (!beers.length) return; const dayCount = [0,0,0,0,0,0,0], dayNames = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']; beers.forEach(e => { const d = new Date(e.time); if (!isNaN(d)) dayCount[d.getDay()]++; }); const maxDay = dayCount.indexOf(Math.max(...dayCount)); document.getElementById('favoriteDay').innerHTML = `<div class="stat-line"><strong>🏆 ${dayNames[maxDay]}</strong><span>${dayCount[maxDay]} Biere (${Math.round(dayCount[maxDay]/beers.length*100)}%)</span></div>`; const personLastTwo = {}; beers.forEach(e => { const d = new Date(e.time); if (!isNaN(d)) { personLastTwo[e.name] = personLastTwo[e.name] || []; personLastTwo[e.name].push(d); personLastTwo[e.name].sort((a,b)=>b-a).slice(0,2); } }); let best = null; for (const [n,dates] of Object.entries(personLastTwo)) if (dates.length>=2) { const gap = (dates[0]-dates[1])/86400000; if (gap>7 && (!best || gap>best.gap)) best = {name:n, gap}; } document.getElementById('comebackKing').innerHTML = best ? `<div class="stat-line"><strong>👑 ${escapeHtml(best.name)}</strong><span>${best.gap.toFixed(1)} Tage Pause</span></div>` : '📭 Kein Comeback erkannt'; const sorted = [...beers].sort((a,b)=>new Date(a.time)-new Date(b.time)), pairs = {}; for(let i=0;i<sorted.length;i++){ const ti=new Date(sorted[i].time); for(let j=i+1;j<sorted.length;j++){ if((new Date(sorted[j].time)-ti)/60000<=30 && sorted[i].name!==sorted[j].name){ const key=[sorted[i].name,sorted[j].name].sort().join(' & '); pairs[key]=(pairs[key]||0)+1; } else break; } } document.getElementById('buddyRanking').innerHTML = Object.entries(pairs).sort((a,b)=>b[1]-a[1]).slice(0,5).map(p=>`<div class="stat-line"><strong>🤝 ${escapeHtml(p[0])}</strong><span>${p[1]}x gemeinsam</span></div>`).join('') || '📭 Keine Synchron-Trinker'; }
-function refreshUI(historyArray) { if (!historyArray) historyArray = []; updateTotalDisplay(historyArray); renderWeeklyChart(historyArray); renderMonthlyChart(historyArray); renderMonthlyTopDrinkers(historyArray); renderSpeedRanking(historyArray); renderAverageTimes(historyArray); renderHistory(historyArray); renderExtraStats(historyArray); }
+function refreshUI(historyArray, strichliste) { if (!historyArray) historyArray = []; if (!strichliste) strichliste = {}; currentHistory = historyArray; currentStrichliste = strichliste; updateTotalDisplay(historyArray); renderWeeklyChart(historyArray); renderMonthlyChart(historyArray); renderMonthlyTopDrinkers(historyArray); renderSlowestPayers(historyArray, strichliste); renderSpeedRanking(historyArray); renderAverageTimes(historyArray); renderHistory(historyArray); renderExtraStats(historyArray); }
 function loadLocalData() { const stored = localStorage.getItem(STORAGE_KEY); return stored ? JSON.parse(stored) : null; }
-async function initFirebase() { updateConnectionStatus('📡 Verbinde mit Firebase...'); try { const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"); const { getFirestore, doc, getDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"); const app = initializeApp(FIREBASE_CONFIG), db = getFirestore(app); mainDocRef = doc(db, "strichliste", "juii_main"); const snap = await getDoc(mainDocRef); refreshUI(snap.exists() ? snap.data().history : []); updateConnectionStatus('✅ Firebase verbunden'); useFirebase = true; unsubscribe = onSnapshot(mainDocRef, s => { if (s.exists()) refreshUI(s.data().history); }); } catch(e) { console.error(e); updateConnectionStatus('⚠️ Firebase nicht erreichbar – Lokaler Speicher'); const data = loadLocalData(); refreshUI(data?.history || []); useFirebase = false; } }
+async function initFirebase() { updateConnectionStatus('📡 Verbinde mit Firebase...'); try { const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"); const { getFirestore, doc, getDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"); const app = initializeApp(FIREBASE_CONFIG), db = getFirestore(app); mainDocRef = doc(db, "strichliste", "juii_main"); const snap = await getDoc(mainDocRef); const data = snap.exists() ? snap.data() : { history: [] }; const strichliste = {}; for (const name of NAMES) { strichliste[name] = data[name] || 0; } refreshUI(data.history || [], strichliste); updateConnectionStatus('✅ Firebase verbunden'); useFirebase = true; unsubscribe = onSnapshot(mainDocRef, s => { if (s.exists()) { const newData = s.data(); const newStrichliste = {}; for (const name of NAMES) { newStrichliste[name] = newData[name] || 0; } refreshUI(newData.history || [], newStrichliste); } }); } catch(e) { console.error(e); updateConnectionStatus('⚠️ Firebase nicht erreichbar – Lokaler Speicher'); const data = loadLocalData(); const localStrichliste = {}; for (const name of NAMES) { localStrichliste[name] = data?.[name] || 0; } refreshUI(data?.history || [], localStrichliste); useFirebase = false; } }
 initFirebase();
+document.getElementById('downloadCsvBtn').addEventListener('click', () => downloadCSV(currentHistory, currentStrichliste));
 </script>
 </body>
 </html>
