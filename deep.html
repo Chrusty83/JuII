@@ -351,6 +351,22 @@
     .history-beer-icon {
       font-size: 1.1rem;
     }
+    .download-btn {
+      background: #2e7d64;
+      color: white;
+      padding: 12px 30px;
+      border: none;
+      border-radius: 40px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 20px 0;
+      transition: transform 0.2s, opacity 0.2s;
+    }
+    .download-btn:hover {
+      transform: scale(1.02);
+      opacity: 0.9;
+    }
     footer {
       font-size: 11px;
       margin-top: 30px;
@@ -393,7 +409,7 @@
     </div>
   </div>
 </div>
-<!-- Top 3 Biertrinker pro Monat direkt unter Bierkonsum pro Monat -->
+<!-- Top 3 Biertrinker pro Monat -->
 <div class="monthly-top-container">
   <h2>📅 Top 3 Biertrinker des aktuellen Monats</h2>
   <div id="monthlyTopList" class="monthly-top-list"><div style="text-align:center;padding:20px;color:#888;">📊 Berechne Top-Trinker...</div></div>
@@ -409,22 +425,12 @@
     <div id="favoriteDay" class="stat-content">📊 Wird berechnet...</div>
   </div>
   <div class="stat-block">
-    <h3>⏰ 2. Uhrzeit-Hitze (Thermal Analysis)</h3>
-    <div class="stat-description">Top 3 Uhrzeiten mit dem meisten Bierkonsum.</div>
-    <div id="peakHours" class="stat-content">📊 Wird berechnet...</div>
-  </div>
-  <div class="stat-block">
-    <h3>👑 3. Comeback-King</h3>
+    <h3>👑 2. Comeback-King</h3>
     <div class="stat-description">Wer hatte die längste Pause und trinkt jetzt wieder aktiv?</div>
     <div id="comebackKing" class="stat-content">📊 Wird berechnet...</div>
   </div>
   <div class="stat-block">
-    <h3>🔗 4. Treue-Nagel (Konstanz-Ranking)</h3>
-    <div class="stat-description">Wer trinkt am regelmäßigsten? Prozentsatz der Wochen mit mind. einem Bier.</div>
-    <div id="consistencyRanking" class="stat-content">📊 Wird berechnet...</div>
-  </div>
-  <div class="stat-block">
-    <h3>🤝 5. Buddy-Ranking (Synchron-Trinker)</h3>
+    <h3>🤝 3. Buddy-Ranking (Synchron-Trinker)</h3>
     <div class="stat-description">Wer trinkt oft zeitgleich mit wem? (innerhalb 30 Minuten)</div>
     <div id="buddyRanking" class="stat-content">📊 Wird berechnet...</div>
   </div>
@@ -441,6 +447,10 @@
   <h2>📜 Letzte Aktionen (letzte 2 Monate)</h2>
   <div id="historyList" class="history-list"><div style="text-align:center;padding:20px;color:#888;">📭 Keine Einträge vorhanden</div></div>
 </div>
+<!-- CSV Download Button -->
+<div class="glass-card">
+  <button id="downloadCsvBtn" class="download-btn">📥 Datenbank als CSV herunterladen</button>
+</div>
 <footer><span id="connectionStatus"></span></footer>
 <script>
 const FIREBASE_CONFIG = {
@@ -451,7 +461,7 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "8081599971",
   appId: "1:8081599971:web:6cc277281b040d995304d6"
 };
-let useFirebase = false, mainDocRef = null, unsubscribe = null, beerChart = null, weeklyChart = null;
+let useFirebase = false, mainDocRef = null, unsubscribe = null, beerChart = null, weeklyChart = null, currentHistory = [];
 const STORAGE_KEY = "juii_bierdeckel_data", NAMES = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 function updateConnectionStatus(msg) { const div = document.getElementById('connectionStatus'); if (div) div.innerHTML = msg; }
 function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
@@ -468,17 +478,19 @@ function getMonthlyTopDrinkers(historyArray) { const beers = filterBeerEntries(h
 function getAllTimeBeerCount(historyArray) { return filterBeerEntries(historyArray).length; }
 function getCurrentMonthCount(historyArray) { const now = new Date(); return filterBeerEntries(historyArray).filter(e => { const d = new Date(e.time); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); }).length; }
 function updateTotalDisplay(historyArray) { document.getElementById('totalBeerDisplay').innerHTML = `🍺 Aktueller Monat: ${getCurrentMonthCount(historyArray)} Biere`; document.getElementById('totalAllTimeDisplay').innerHTML = `📊 Alle Zeiten: ${getAllTimeBeerCount(historyArray)} Biere`; }
+function downloadCSV(historyArray) { if (!historyArray || historyArray.length === 0) { alert("Keine Daten zum Herunterladen vorhanden!"); return; } const headers = ["Aktion", "Name", "Zeitpunkt (ISO)", "Zeitpunkt (lokal)"]; const rows = historyArray.map(entry => { const date = new Date(entry.time); const localTime = date.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }); return [ entry.name.includes('bezahlt') || entry.name.includes('entfernt') ? "BEZAHLUNG" : "BIER", entry.name.replace(' (bezahlt: ...)', '').replace(' (1 Bier entfernt)', ''), entry.time, localTime ]; }); const csvContent = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\n'); const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" }); const link = document.createElement("a"); const url = URL.createObjectURL(blob); link.setAttribute("href", url); link.setAttribute("download", `bierdaten_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.csv`); link.style.visibility = "hidden"; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url); }
 function renderSpeedRanking(historyArray) { const container = document.getElementById('speedRankingList'); const fastest = getFastestDrinkTimes(historyArray); if (!fastest.length) { container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">⚡ Keine Zeiten über 2 Minuten gefunden</div>'; return; } container.innerHTML = fastest.map((f, i) => `<div class="speed-ranking-item"><div class="speed-rank-number${i===0?' speed-rank-1':i===1?' speed-rank-2':i===2?' speed-rank-3':''}">${i+1}.</div><div class="speed-rank-name">${escapeHtml(f.name)}</div><div class="speed-rank-time">${formatTime(f.time)}</div></div>`).join(''); }
-function renderAverageTimes(historyArray) { const container = document.getElementById('avgTimeList'); const avg = getAverageDrinkTimes(historyArray); if (!avg.length) { container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">⏱️ Keine ausreichenden Daten</div>'; return; } container.innerHTML = avg.map((a, i) => `<div class="speed-ranking-item"><div class="speed-rank-number${i===0?' speed-rank-1':i===1?' speed-rank-2':i===2?' speed-rank-3':''}">${i+1}.</div><div class="speed-rank-name">${escapeHtml(a.name)}</div><div class="speed-rank-time">${formatTime(a.avgTime)} <span class="avg-time">(Ø ${a.count})</span></div></div>`).join(''); }
+function renderAverageTimes(historyArray) { const container = document.getElementById('avgTimeList'); const avg = getAverageDrinkTimes(historyArray); if (!avg.length) { container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">⏱️ Keine ausreichenden Daten (mind. 2 Biere am gleichen Tag)</div>'; return; } container.innerHTML = avg.map((a, i) => `<div class="speed-ranking-item"><div class="speed-rank-number${i===0?' speed-rank-1':i===1?' speed-rank-2':i===2?' speed-rank-3':''}">${i+1}.</div><div class="speed-rank-name">${escapeHtml(a.name)}</div><div class="speed-rank-time">${formatTime(a.avgTime)} <span class="avg-time">(Ø ${a.count})</span></div></div>`).join(''); }
 function renderMonthlyTopDrinkers(historyArray) { const container = document.getElementById('monthlyTopList'); const top = getMonthlyTopDrinkers(historyArray); if (!top.length) { container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">📊 Keine Daten für aktuellen Monat</div>'; return; } const icons = ['🥇', '🥈', '🥉']; container.innerHTML = top.map(([name, count], i) => `<div class="speed-ranking-item"><div class="speed-rank-number" style="font-size:1.5rem;">${icons[i]}</div><div class="speed-rank-name">${escapeHtml(name)}</div><div class="speed-rank-time">${count} 🍺</div></div>`).join(''); }
 function renderHistory(historyArray) { const container = document.getElementById('historyList'); const lastTwo = filterLastTwoMonths(historyArray); if (!lastTwo.length) { container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">📭 Keine Einträge der letzten 2 Monate</div>'; return; } container.innerHTML = [...lastTwo].reverse().map(e => { const d = new Date(e.time); return `<div class="history-item${isPaymentEntry(e)?' payment':''}"><span class="history-beer-icon">${isPaymentEntry(e)?'💰':'🍺'}</span><span class="history-name">${escapeHtml(e.name)}</span><span class="history-time">${d.toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span></div>`; }).join(''); }
 function renderWeeklyChart(historyArray) { const weeks = getLast8Weeks(), { consumption, perPerson } = getWeeklyData(historyArray, weeks); if (weeklyChart) weeklyChart.destroy(); weeklyChart = new Chart(document.getElementById('weeklyChart'), { type: 'bar', data: { labels: weeks.map(w => w.label), datasets: [{ label: '🍺 Biere pro Woche', data: consumption, backgroundColor: weeks.map((_, i) => i === 0 ? '#ffd700' : '#5a9e4e'), borderRadius: 10 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#fff' } } }, scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966', rotation: 45 } } } } }); document.getElementById('weekStats').innerHTML = weeks.map((w, i) => `<div class="stat-card${i===0?' current-week':''}"><div class="stat-week"><strong>${w.label}</strong></div><div class="stat-count">${consumption[i]}</div><div class="stat-label">🍺 Biere</div></div>`).join(''); document.getElementById('weeklyRanking').innerHTML = weeks.map((w, i) => { const ranking = Object.entries(perPerson[i]).sort((a,b)=>b[1]-a[1]).slice(0,3); return `<div class="ranking-week${i===0?' current-week':''}"><div class="ranking-week-title">🏆 ${w.label}${i===0?' 🔥 AKTUELLE WOCHE':''}</div><div class="ranking-list">${ranking.length ? ranking.map(([n,c],idx)=>`<div class="ranking-item"><div class="rank-number rank-${idx+1}">${idx===0?'🥇':idx===1?'🥈':'🥉'}</div><div class="rank-name">${escapeHtml(n)}</div><div class="rank-count">${c} 🍺</div></div>`).join('') : '<div style="text-align:center;padding:15px;color:#888;">🍺 Keine Biere</div>'}</div></div>`; }).join(''); }
 function renderMonthlyChart(historyArray) { const months = new Map(); filterBeerEntries(historyArray).forEach(e => { const d = new Date(e.time); if (!isNaN(d)) months.set(`${d.getMonth()+1}/${d.getFullYear()}`, (months.get(`${d.getMonth()+1}/${d.getFullYear()}`) || 0) + 1); }); const sorted = Array.from(months.keys()).sort((a,b) => { let [mA,yA]=a.split('/'),[mB,yB]=b.split('/'); return (yA-yB) || (mA-mB); }), monthNames = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez']; if (beerChart) beerChart.destroy(); beerChart = new Chart(document.getElementById('beerChart'), { type: 'bar', data: { labels: sorted.map(l => { let [m,y]=l.split('/'); return monthNames[parseInt(m)-1]+" "+y; }), datasets: [{ label: '🍺 Biere/Monat', data: sorted.map(l => months.get(l)), backgroundColor: '#f9b43a', borderRadius: 12 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#fff' } } }, scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966', rotation: 45 } } } } }); const now = new Date(), targets = [[now.getFullYear(), now.getMonth()+1, 'currentMonthCount', 'currentMonthLabel'],[now.getMonth()===0?now.getFullYear()-1:now.getFullYear(), now.getMonth()===0?12:now.getMonth(), 'lastMonthCount', 'lastMonthLabel'],[now.getMonth()<=1?now.getFullYear()-1:now.getFullYear(), now.getMonth()===0?11:(now.getMonth()===1?12:now.getMonth()-1), 'twoMonthsAgoCount', 'twoMonthsAgoLabel']]; targets.forEach(([y,m,id,labelId]) => { document.getElementById(labelId).innerText = new Date(y,m-1,1).toLocaleString('de-DE',{month:'long',year:'numeric'}); let cnt = 0; filterBeerEntries(historyArray).forEach(e => { const d = new Date(e.time); if (d.getFullYear()===y && d.getMonth()+1===m) cnt++; }); document.getElementById(id).innerText = cnt; }); }
-function renderExtraStats(historyArray) { const beers = filterBeerEntries(historyArray); if (!beers.length) return; const dayCount = [0,0,0,0,0,0,0], dayNames = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']; beers.forEach(e => { const d = new Date(e.time); if (!isNaN(d)) dayCount[d.getDay()]++; }); const maxDay = dayCount.indexOf(Math.max(...dayCount)); document.getElementById('favoriteDay').innerHTML = `<div class="stat-line"><strong>🏆 ${dayNames[maxDay]}</strong><span>${dayCount[maxDay]} Biere (${Math.round(dayCount[maxDay]/beers.length*100)}%)</span></div>`; const hourCount = {}; beers.forEach(e => { const h = new Date(e.time).getHours(); hourCount[h] = (hourCount[h]||0)+1; }); document.getElementById('peakHours').innerHTML = Object.entries(hourCount).sort((a,b)=>b[1]-a[1]).slice(0,3).map(h => `<div class="stat-line"><strong>⏰ ${h[0]}:00 Uhr</strong><span>${h[1]} Biere</span></div>`).join('') || '📭 Keine Daten'; const personLastTwo = {}; beers.forEach(e => { const d = new Date(e.time); if (!isNaN(d)) { personLastTwo[e.name] = personLastTwo[e.name] || []; personLastTwo[e.name].push(d); personLastTwo[e.name].sort((a,b)=>b-a).slice(0,2); } }); let best = null; for (const [n,dates] of Object.entries(personLastTwo)) if (dates.length>=2) { const gap = (dates[0]-dates[1])/86400000; if (gap>7 && (!best || gap>best.gap)) best = {name:n, gap}; } document.getElementById('comebackKing').innerHTML = best ? `<div class="stat-line"><strong>👑 ${escapeHtml(best.name)}</strong><span>${best.gap.toFixed(1)} Tage Pause</span></div>` : '📭 Kein Comeback erkannt'; const allDates = beers.map(e=>new Date(e.time)).filter(d=>!isNaN(d)), totalWeeks = Math.ceil((Math.max(...allDates)-Math.min(...allDates))/604800000)||1, personWeeks = {}; beers.forEach(e => { const d=new Date(e.time), wk = `${d.getFullYear()}-${Math.ceil(d.getDate()/7)}`; personWeeks[e.name] = personWeeks[e.name] || new Set(); personWeeks[e.name].add(wk); }); document.getElementById('consistencyRanking').innerHTML = Object.entries(personWeeks).map(([n,w])=>({name:n,percent:Math.round(w.size/totalWeeks*100)})).sort((a,b)=>b.percent-a.percent).slice(0,5).map(c=>`<div class="stat-line"><strong>${escapeHtml(c.name)}</strong><span>${c.percent}% (${c.weeks} Wochen)</span></div>`).join('') || '📭 Keine ausreichenden Daten'; const sorted = [...beers].sort((a,b)=>new Date(a.time)-new Date(b.time)), pairs = {}; for(let i=0;i<sorted.length;i++){ const ti=new Date(sorted[i].time); for(let j=i+1;j<sorted.length;j++){ if((new Date(sorted[j].time)-ti)/60000<=30 && sorted[i].name!==sorted[j].name){ const key=[sorted[i].name,sorted[j].name].sort().join(' & '); pairs[key]=(pairs[key]||0)+1; } else break; } } document.getElementById('buddyRanking').innerHTML = Object.entries(pairs).sort((a,b)=>b[1]-a[1]).slice(0,5).map(p=>`<div class="stat-line"><strong>🤝 ${escapeHtml(p[0])}</strong><span>${p[1]}x gemeinsam</span></div>`).join('') || '📭 Keine Synchron-Trinker'; }
-function refreshUI(historyArray) { if (!historyArray) historyArray = []; updateTotalDisplay(historyArray); renderWeeklyChart(historyArray); renderMonthlyChart(historyArray); renderMonthlyTopDrinkers(historyArray); renderSpeedRanking(historyArray); renderAverageTimes(historyArray); renderHistory(historyArray); renderExtraStats(historyArray); }
+function renderExtraStats(historyArray) { const beers = filterBeerEntries(historyArray); if (!beers.length) return; const dayCount = [0,0,0,0,0,0,0], dayNames = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']; beers.forEach(e => { const d = new Date(e.time); if (!isNaN(d)) dayCount[d.getDay()]++; }); const maxDay = dayCount.indexOf(Math.max(...dayCount)); document.getElementById('favoriteDay').innerHTML = `<div class="stat-line"><strong>🏆 ${dayNames[maxDay]}</strong><span>${dayCount[maxDay]} Biere (${Math.round(dayCount[maxDay]/beers.length*100)}%)</span></div>`; const personLastTwo = {}; beers.forEach(e => { const d = new Date(e.time); if (!isNaN(d)) { personLastTwo[e.name] = personLastTwo[e.name] || []; personLastTwo[e.name].push(d); personLastTwo[e.name].sort((a,b)=>b-a).slice(0,2); } }); let best = null; for (const [n,dates] of Object.entries(personLastTwo)) if (dates.length>=2) { const gap = (dates[0]-dates[1])/86400000; if (gap>7 && (!best || gap>best.gap)) best = {name:n, gap}; } document.getElementById('comebackKing').innerHTML = best ? `<div class="stat-line"><strong>👑 ${escapeHtml(best.name)}</strong><span>${best.gap.toFixed(1)} Tage Pause</span></div>` : '📭 Kein Comeback erkannt'; const sorted = [...beers].sort((a,b)=>new Date(a.time)-new Date(b.time)), pairs = {}; for(let i=0;i<sorted.length;i++){ const ti=new Date(sorted[i].time); for(let j=i+1;j<sorted.length;j++){ if((new Date(sorted[j].time)-ti)/60000<=30 && sorted[i].name!==sorted[j].name){ const key=[sorted[i].name,sorted[j].name].sort().join(' & '); pairs[key]=(pairs[key]||0)+1; } else break; } } document.getElementById('buddyRanking').innerHTML = Object.entries(pairs).sort((a,b)=>b[1]-a[1]).slice(0,5).map(p=>`<div class="stat-line"><strong>🤝 ${escapeHtml(p[0])}</strong><span>${p[1]}x gemeinsam</span></div>`).join('') || '📭 Keine Synchron-Trinker'; }
+function refreshUI(historyArray) { if (!historyArray) historyArray = []; currentHistory = historyArray; updateTotalDisplay(historyArray); renderWeeklyChart(historyArray); renderMonthlyChart(historyArray); renderMonthlyTopDrinkers(historyArray); renderSpeedRanking(historyArray); renderAverageTimes(historyArray); renderHistory(historyArray); renderExtraStats(historyArray); }
 function loadLocalData() { const stored = localStorage.getItem(STORAGE_KEY); return stored ? JSON.parse(stored) : null; }
 async function initFirebase() { updateConnectionStatus('📡 Verbinde mit Firebase...'); try { const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"); const { getFirestore, doc, getDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"); const app = initializeApp(FIREBASE_CONFIG), db = getFirestore(app); mainDocRef = doc(db, "strichliste", "juii_main"); const snap = await getDoc(mainDocRef); refreshUI(snap.exists() ? snap.data().history : []); updateConnectionStatus('✅ Firebase verbunden'); useFirebase = true; unsubscribe = onSnapshot(mainDocRef, s => { if (s.exists()) refreshUI(s.data().history); }); } catch(e) { console.error(e); updateConnectionStatus('⚠️ Firebase nicht erreichbar – Lokaler Speicher'); const data = loadLocalData(); refreshUI(data?.history || []); useFirebase = false; } }
 initFirebase();
+document.getElementById('downloadCsvBtn').addEventListener('click', () => downloadCSV(currentHistory));
 </script>
 </body>
 </html>
