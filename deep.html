@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>JUII Bierdeckel – Strichliste (UNLÖSCHBAR)</title>
+  <title>JUII Bierdeckel – Strichliste</title>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   
@@ -24,7 +24,7 @@
       -webkit-background-clip: text;
       color: transparent;
     }
-    h2, h3 { margin: 1rem 0 0.75rem; color: #ffd966; }
+    h2 { margin: 1rem 0 0.75rem; color: #ffd966; }
     .glass-card {
       background: rgba(30,30,40,0.85);
       backdrop-filter: blur(2px);
@@ -52,7 +52,7 @@
     .beer-icons { font-size: 1.4rem; letter-spacing: 2px; }
     .beer-cost { font-size: 13px; color: #aaa; margin-top: 4px; }
     
-    button, .add, .remove, .pay, .admin-login-btn, .reset-btn, .clear-btn, .logout-btn, .popup-confirm, .popup-cancel, .backup-btn {
+    button, .add, .pay {
       padding: 8px 16px;
       border: none;
       border-radius: 40px !important;
@@ -66,15 +66,7 @@
     button:hover { opacity: 0.85; }
     
     .add { background: #0a84ff; color: white; }
-    .remove { background: #ff6b35; color: white; }
     .pay { background: #2e7d64; color: white; }
-    .admin-login-btn { background: #5a5fcf; color: white; }
-    .reset-btn { background: #c44536; color: white; }
-    .clear-btn { background: #e68a2e; color: white; }
-    .logout-btn { background: #666; color: white; }
-    .backup-btn { background: #2e7d64; color: white; }
-    .popup-confirm { background: #2e7d64; color: white; }
-    .popup-cancel { background: #6c757d; color: white; }
     
     .action-buttons {
       display: flex;
@@ -121,76 +113,6 @@
       color: #aaa;
       margin-top: 5px;
     }
-    input[type="password"] {
-      background: #2a2a36;
-      border: 1px solid #444;
-      padding: 10px 14px;
-      border-radius: 40px;
-      color: white;
-      font-size: 1rem;
-      width: 220px;
-    }
-    .history-list {
-      background: #0f0f17;
-      border-radius: 28px;
-      padding: 12px 18px;
-      max-height: 240px;
-      overflow-y: auto;
-      text-align: left;
-    }
-    footer {
-      font-size: 11px;
-      margin-top: 30px;
-      opacity: 0.5;
-      color: #888;
-    }
-    .loading-spinner {
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-radius: 50%;
-      border-top-color: #ffd966;
-      animation: spin 0.8s linear infinite;
-      margin-left: 10px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    
-    .confirm-popup, .reset-confirm-popup {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.95);
-      backdrop-filter: blur(8px);
-      align-items: center;
-      justify-content: center;
-      z-index: 1001;
-    }
-    .confirm-popup-box {
-      background: #1f1f2c;
-      padding: 28px 24px;
-      border-radius: 48px;
-      min-width: 320px;
-      text-align: center;
-      border: 2px solid #ff4444;
-    }
-    .confirm-popup-box p {
-      font-size: 1.2rem;
-      margin-bottom: 10px;
-    }
-    .confirm-amount {
-      font-size: 1.8rem;
-      font-weight: bold;
-      color: #b9f6ca;
-      margin: 15px 0;
-    }
-    .confirm-buttons {
-      display: flex;
-      gap: 15px;
-      justify-content: center;
-      margin-top: 20px;
-    }
     
     .total-beer-badge {
       background: #2e7d64;
@@ -230,23 +152,65 @@
         transform: translateX(-50%) translateY(0);
       }
     }
-    .backup-section {
+    
+    .confirm-popup {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(5px);
+      align-items: center;
+      justify-content: center;
+      z-index: 1001;
+    }
+    .confirm-popup-box {
+      background: #1f1f2c;
+      padding: 28px 24px;
+      border-radius: 48px;
+      min-width: 320px;
+      text-align: center;
+      border: 1px solid #ffd966;
+    }
+    .confirm-popup-box p {
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+    }
+    .confirm-amount {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: #b9f6ca;
       margin: 15px 0;
-      padding: 10px;
-      background: #1a1a2a;
-      border-radius: 20px;
     }
-    .warning-text {
-      color: #ff8888;
-      font-size: 12px;
-      margin-top: 10px;
+    .confirm-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin-top: 20px;
     }
+    
+    footer {
+      font-size: 11px;
+      margin-top: 30px;
+      opacity: 0.5;
+      color: #888;
+    }
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #ffd966;
+      animation: spin 0.8s linear infinite;
+      margin-left: 10px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
-<h1>🛡️ JUII BIERDECKEL</h1>
-<p style="color:#88ff88; font-size:12px;">🔒 Datenbank ist GESICHERT – kein Löschen möglich</p>
+<h1>JUII BIERDECKEL</h1>
 
 <div class="glass-card">
   <div id="totalBeerDisplay" class="total-beer-badge">🍺 Gesamt: 0 Biere</div>
@@ -273,29 +237,6 @@
   </div>
 </div>
 
-<div class="glass-card">
-  <h2>🔐 Admin Bereich</h2>
-  <div>
-    <input type="password" id="adminPassword" placeholder="Passwort eingeben" autocomplete="off">
-    <button id="loginBtn" class="admin-login-btn">🔓 Login</button>
-  </div>
-  <div id="adminActions" style="display:none; margin-top: 20px;">
-    <div class="backup-section">
-      <button id="backupBtn" class="backup-btn">💾 Backup erstellen</button>
-      <span style="font-size:12px; margin-left:10px;">🔒 Daten sind sicher – Backup ist nur zur Sicherheit</span>
-    </div>
-    <button id="resetAllBtn" class="reset-btn" style="opacity:0.7;">⚠️ NUR BIERE ZURÜCKSETZEN (nicht löschen!)</button>
-    <button id="clearHistoryBtn" class="clear-btn" style="opacity:0.7;">🗑️ Verlauf löschen (nur Liste, nicht Biere)</button>
-    <button id="logoutBtn" class="logout-btn">🚪 Logout</button>
-    <div class="warning-text">
-      ⚠️ HINWEIS: "Zurücksetzen" setzt nur die Bier-Zähler auf 0, die Datenbank bleibt erhalten.<br>
-      Ein vollständiges Löschen der Datenbank ist technisch in dieser App NICHT möglich!
-    </div>
-    <h3>📜 Letzte Aktionen</h3>
-    <div class="history-list"><ul id="history"></ul></div>
-  </div>
-</div>
-
 <div id="confirmPopup" class="confirm-popup">
   <div class="confirm-popup-box">
     <p>🍺 <strong id="confirmName"></strong>, hast du bezahlt?</p>
@@ -307,35 +248,9 @@
   </div>
 </div>
 
-<div id="resetConfirmPopup" class="reset-confirm-popup">
-  <div class="confirm-popup-box">
-    <p>⚠️ <strong style="color:#ff6b35;">A C H T U N G !</strong> ⚠️</p>
-    <p>Diese Aktion setzt <strong>ALLE Bier-Zähler auf 0</strong>.</p>
-    <p>Die Datenbank selbst bleibt <strong style="color:#88ff88;">ERHALTEN</strong> – nur die Zahlen werden zurückgesetzt.</p>
-    <p style="margin-top:15px;">Bitte gib das Admin-Passwort ein:</p>
-    <input type="password" id="resetPasswordInput" placeholder="Admin-Passwort" style="margin:10px 0; background:#2a2a36; border:1px solid #444; padding:10px; border-radius:40px; color:white; width:100%;">
-    <div class="confirm-buttons">
-      <button id="resetConfirmYesBtn" class="popup-confirm" style="background:#c44536;">⚠️ Ja, zurücksetzen</button>
-      <button id="resetConfirmNoBtn" class="popup-cancel">❌ Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-<footer>
-  <span id="connectionStatus"></span><br>
-  <span style="font-size:10px;">🔒 Diese App kann die Datenbank NICHT löschen – nur Inhalte ändern</span>
-</footer>
+<footer><span id="connectionStatus"></span></footer>
 
 <script>
-// ============================================================
-// SICHERHEITS-MECHANISMEN:
-// 1. KEINE Funktion löscht jemals die Datenbank oder das Dokument
-// 2. "Reset" setzt nur Werte auf 0, löscht aber nichts
-// 3. Jede Änderung wird protokolliert
-// 4. Backup vor jedem Reset (optional)
-// 5. Firebase Regeln verhindern Löschen auf Server-Ebene
-// ============================================================
-
 const BEER_PRICE = 2.00;
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
@@ -345,21 +260,17 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "8081599971",
   appId: "1:8081599971:web:6cc277281b040d995304d6"
 };
-const ADMIN_PASSWORD = "admin123";
 
-let isAdminLoggedIn = false;
 let useFirebase = false;
 let mainDocRef = null;
 let unsubscribe = null;
 let beerChart = null;
 let pendingPayPerson = null;
 let pendingPayAmount = 0;
-let pendingResetAction = null;
 
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 const STORAGE_KEY = "juii_bierdeckel_data";
 
-// ========== HILFSFUNKTIONEN ==========
 function getTotalBeerCount(data) {
   if (!data) return 0;
   let total = 0;
@@ -373,7 +284,7 @@ function updateTotalDisplay(data) {
   const totalDiv = document.getElementById('totalBeerDisplay');
   if (totalDiv) {
     const total = getTotalBeerCount(data);
-    totalDiv.innerHTML = `🍺 Gesamt: ${total} ${total === 1 ? 'Bier' : 'Biere'} (Datenbank bleibt erhalten)`;
+    totalDiv.innerHTML = `🍺 Gesamt: ${total} ${total === 1 ? 'Bier' : 'Biere'}`;
   }
 }
 
@@ -394,7 +305,6 @@ function escapeHtml(str) { return str.replace(/[&<>]/g, m => m === '&' ? '&amp;'
 function formatEuro(amount) { return amount === Math.floor(amount) ? `${Math.floor(amount)} €` : `${amount.toFixed(2)} €`; }
 function updateConnectionStatus(msg) { const div = document.getElementById('connectionStatus'); if (div) div.innerHTML = msg; }
 
-// ========== CONFIRM POPUPS ==========
 function showConfirmPopup(name, count) {
   if (count === 0) { alert("Keine offenen Biere zum Bezahlen."); return; }
   pendingPayPerson = name;
@@ -405,131 +315,6 @@ function showConfirmPopup(name, count) {
 }
 function closeConfirmPopup() { document.getElementById('confirmPopup').style.display = 'none'; pendingPayPerson = null; }
 
-// ========== BACKUP (NUR ZUR SICHERHEIT, KEIN LÖSCHEN) ==========
-async function createBackup() {
-  let data = null;
-  if (useFirebase && mainDocRef) {
-    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-    const snap = await getDoc(mainDocRef);
-    if (snap.exists()) data = snap.data();
-  } else {
-    data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-  }
-  
-  if (data) {
-    const backup = {
-      timestamp: new Date().toISOString(),
-      data: data,
-      names: names,
-      info: "Dies ist ein Backup – die Originaldatenbank bleibt erhalten"
-    };
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `juii_backup_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast("✅ Backup wurde erstellt (Datenbank unverändert)");
-    return true;
-  }
-  showToast("❌ Keine Daten zum Sichern vorhanden", true);
-  return false;
-}
-
-// ========== RESET (NUR WERTE AUF 0 – KEIN LÖSCHEN!) ==========
-function showResetConfirmPopup(action) {
-  pendingResetAction = action;
-  document.getElementById('resetPasswordInput').value = '';
-  document.getElementById('resetConfirmPopup').style.display = 'flex';
-}
-
-function closeResetConfirmPopup() {
-  document.getElementById('resetConfirmPopup').style.display = 'none';
-  pendingResetAction = null;
-}
-
-async function executeResetAction() {
-  const pwd = document.getElementById('resetPasswordInput').value;
-  if (pwd !== ADMIN_PASSWORD) {
-    showToast("❌ Falsches Passwort! Aktion abgebrochen.", true);
-    closeResetConfirmPopup();
-    return false;
-  }
-  
-  // Optionales Backup vor dem Reset
-  await createBackup();
-  
-  let success = false;
-  if (pendingResetAction === 'reset') {
-    // NUR Biere auf 0 setzen – das Dokument bleibt erhalten!
-    if (useFirebase && mainDocRef) {
-      const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-      const snap = await getDoc(mainDocRef);
-      if (snap.exists()) {
-        let current = snap.data();
-        for (let name of names) {
-          current[name] = 0;
-        }
-        current.history = [...(current.history || []), { 
-          name: `🟡 SYSTEM: Biere zurückgesetzt (Admin) – Datenbank bleibt erhalten ${new Date().toLocaleString()}`, 
-          time: new Date().toISOString() 
-        }];
-        await setDoc(mainDocRef, current);
-        success = true;
-      } else {
-        // Dokument existiert nicht – neu anlegen, nicht löschen!
-        let newDoc = { history: [] };
-        for (let name of names) newDoc[name] = 0;
-        await setDoc(mainDocRef, newDoc);
-        success = true;
-      }
-    } else {
-      let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"history":[]}');
-      for (let name of names) {
-        data[name] = 0;
-      }
-      data.history = [...(data.history || []), { 
-        name: `🟡 SYSTEM: Biere zurückgesetzt (Admin) – Datenbank bleibt erhalten ${new Date().toLocaleString()}`, 
-        time: new Date().toISOString() 
-      }];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      success = true;
-    }
-    if (success) showToast("✅ Bier-Zähler wurden auf 0 gesetzt (Datenbank erhalten)");
-  } 
-  else if (pendingResetAction === 'clearHistory') {
-    // Nur den Verlauf leeren – Biere bleiben erhalten!
-    if (useFirebase && mainDocRef) {
-      const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-      const snap = await getDoc(mainDocRef);
-      if (snap.exists()) {
-        let current = snap.data();
-        current.history = [{ 
-          name: `🗑️ SYSTEM: Verlauf gelöscht (Admin) – Biere bleiben erhalten ${new Date().toLocaleString()}`, 
-          time: new Date().toISOString() 
-        }];
-        await setDoc(mainDocRef, current);
-        success = true;
-      }
-    } else {
-      let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"history":[]}');
-      data.history = [{ 
-        name: `🗑️ SYSTEM: Verlauf gelöscht (Admin) – Biere bleiben erhalten ${new Date().toLocaleString()}`, 
-        time: new Date().toISOString() 
-      }];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      success = true;
-    }
-    if (success) showToast("✅ Verlauf wurde gelöscht (Bier-Zähler bleiben erhalten)");
-  }
-  
-  closeResetConfirmPopup();
-  if (success) refreshUI();
-  return success;
-}
-
-// ========== BEZAHLEN (SETZT NUR EINE PERSON AUF 0) ==========
 async function resetBeerCountForPerson(person) {
   if (!person) return;
   if (useFirebase && mainDocRef) {
@@ -541,12 +326,6 @@ async function resetBeerCountForPerson(person) {
       current[person] = 0;
       current.history = [...(current.history || []), { name: `${person} (bezahlt: ${oldCount} Bier = ${formatEuro(oldCount * BEER_PRICE)})`, time: new Date().toISOString() }];
       await setDoc(mainDocRef, current);
-    } else {
-      // Dokument existiert nicht – neu anlegen
-      let newDoc = { history: [] };
-      for (let name of names) newDoc[name] = 0;
-      newDoc[person] = 0;
-      await setDoc(mainDocRef, newDoc);
     }
   } else {
     let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"history":[]}');
@@ -561,45 +340,6 @@ async function resetBeerCountForPerson(person) {
   closeConfirmPopup();
 }
 
-// ========== BIER ENTFERNEN (NUR ADMIN, -1) ==========
-async function removeBeerFromPerson(person) {
-  if (!isAdminLoggedIn) { showToast("Keine Berechtigung! Nur für Admin.", true); return; }
-  
-  if (useFirebase && mainDocRef) {
-    const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-    const snap = await getDoc(mainDocRef);
-    if (snap.exists()) {
-      let current = snap.data();
-      const currentCount = current[person] || 0;
-      if (currentCount > 0) {
-        current[person] = currentCount - 1;
-        current.history = [...(current.history || []), { name: `${person} (1 Bier entfernt durch Admin)`, time: new Date().toISOString() }];
-        await setDoc(mainDocRef, current);
-        const newTotal = getTotalBeerCount(current);
-        updateTotalDisplay(current);
-        showToast(`🍺 Ein Bier von ${person} wurde entfernt! (Neuer Stand: ${current[person]} Bier)`);
-      } else {
-        showToast(`${person} hat keine Biere zum Entfernen.`, true);
-      }
-    }
-  } else {
-    let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"history":[]}');
-    names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
-    const currentCount = data[person] || 0;
-    if (currentCount > 0) {
-      data[person] = currentCount - 1;
-      if (!data.history) data.history = [];
-      data.history.push({ name: `${person} (1 Bier entfernt durch Admin)`, time: new Date().toISOString() });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      refreshUI();
-      showToast(`🍺 Ein Bier von ${person} wurde entfernt! (Neuer Stand: ${data[person]} Bier)`);
-    } else {
-      showToast(`${person} hat keine Biere zum Entfernen.`, true);
-    }
-  }
-}
-
-// ========== MONATS-STATISTIK ==========
 function getMonthName(year, month) { return new Date(year, month - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' }); }
 
 function updateMonthStats(historyArray) {
@@ -618,7 +358,7 @@ function updateMonthStats(historyArray) {
   const counts = [0, 0, 0];
   if (historyArray && Array.isArray(historyArray)) {
     historyArray.forEach(entry => {
-      if (entry?.time && entry.name && !entry.name.includes("bezahlt") && !entry.name.includes("entfernt") && !entry.name.includes("SYSTEM")) {
+      if (entry?.time && entry.name && !entry.name.includes("bezahlt")) {
         const date = new Date(entry.time);
         if (!isNaN(date.getTime())) {
           const entryYear = date.getFullYear();
@@ -639,7 +379,6 @@ function updateMonthStats(historyArray) {
   document.getElementById('twoMonthsAgoCount').innerText = counts[2];
 }
 
-// ========== RENDER FUNCTIONS ==========
 function renderMainTable(data) {
   const tbody = document.getElementById('tableBody');
   if (!tbody) return;
@@ -651,30 +390,26 @@ function renderMainTable(data) {
     const count = data[name] || 0;
     const total = count * BEER_PRICE;
     let icons = count > 0 ? "🍺".repeat(Math.min(count, 20)) + (count > 20 ? ` +${count-20}` : "") : "—";
-    let buttonsHtml = `<button class="add" data-name="${escapeHtml(name)}">+1 Bier</button>
-                       <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">bezahlt</button>`;
-    
-    if (isAdminLoggedIn) {
-      buttonsHtml += `<button class="remove" data-name-remove="${escapeHtml(name)}">-1 Bier</button>`;
-    }
     
     tbody.innerHTML += `<tr>
       <td style="font-weight:500;">${escapeHtml(name)}</td>
       <td class="beer-icons">${icons}<br><span class="beer-cost">${formatEuro(total)}</span></td>
-      <td><div class="action-buttons">${buttonsHtml}</div></td>
+      <td><div class="action-buttons">
+        <button class="add" data-name="${escapeHtml(name)}">+1 Bier</button>
+        <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">bezahlt</button>
+      </div></td>
     </tr>`;
   }
   
   document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
   document.querySelectorAll('.pay').forEach(btn => { btn.onclick = () => { const name = btn.dataset.namePay; const count = parseInt(btn.dataset.count) || 0; showConfirmPopup(name, count); }; });
-  document.querySelectorAll('.remove').forEach(btn => { btn.onclick = () => removeBeerFromPerson(btn.dataset.nameRemove); });
 }
 
 function renderMonthlyChart(historyArray) {
   const months = new Map();
   if (historyArray && Array.isArray(historyArray)) {
     historyArray.forEach(e => {
-      if (e?.time && e.name && !e.name.includes("bezahlt") && !e.name.includes("entfernt") && !e.name.includes("SYSTEM")) {
+      if (e?.time && e.name && !e.name.includes("bezahlt")) {
         const d = new Date(e.time);
         if (!isNaN(d)) {
           const key = `${d.getMonth()+1}/${d.getFullYear()}`;
@@ -691,21 +426,10 @@ function renderMonthlyChart(historyArray) {
   if (beerChart) beerChart.destroy();
   beerChart = new Chart(ctx, { type: 'bar', data: { labels: sortedLabels, datasets: [{ label: '🍺 Biere/Monat', data: chartData, backgroundColor: '#f9b43a', borderRadius: 12 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#fff' } } }, scales: { y: { ticks: { color: '#ddd' } }, x: { ticks: { color: '#ffd966' } } } } });
   
-  const realHistory = (historyArray || []).filter(e => e && e.name && !e.name.includes("bezahlt") && !e.name.includes("entfernt") && !e.name.includes("SYSTEM"));
+  const realHistory = (historyArray || []).filter(e => e && e.name && !e.name.includes("bezahlt"));
   updateMonthStats(realHistory);
 }
 
-function updateHistoryUI(historyArray) {
-  const ul = document.getElementById('history');
-  if (!ul) return;
-  ul.innerHTML = '';
-  if (!historyArray?.length) { ul.innerHTML = '<li>📭 Keine Einträge</li>'; return; }
-  [...historyArray].reverse().forEach(e => { 
-    ul.innerHTML += `<li>🍺 ${escapeHtml(e.name)} – ${new Date(e.time).toLocaleString('de-DE')}</li>`; 
-  });
-}
-
-// ========== DATENSPEICHERUNG ==========
 function loadLocalData() { const stored = localStorage.getItem(STORAGE_KEY); return stored ? JSON.parse(stored) : null; }
 function saveLocalData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 
@@ -718,15 +442,7 @@ function refreshUI() {
           const renderData = {};
           names.forEach(n => renderData[n] = data[n] || 0);
           renderMainTable(renderData);
-          updateHistoryUI(data.history || []);
           renderMonthlyChart(data.history || []);
-        } else {
-          // Dokument existiert nicht – wir legen es mit Nullen an (KEIN LÖSCHEN!)
-          const newDoc = { history: [] };
-          for (let name of names) newDoc[name] = 0;
-          import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js").then(({ setDoc }) => {
-            setDoc(mainDocRef, newDoc).then(() => refreshUI());
-          });
         }
       });
     });
@@ -736,7 +452,6 @@ function refreshUI() {
     names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
     if (!data.history) data.history = [];
     renderMainTable(data);
-    updateHistoryUI(data.history);
     renderMonthlyChart(data.history);
   }
 }
@@ -747,12 +462,10 @@ function renderLocalData() {
   names.forEach(n => { if (typeof data[n] !== 'number') data[n] = 0; });
   if (!data.history) data.history = [];
   renderMainTable(data);
-  updateHistoryUI(data.history);
   renderMonthlyChart(data.history);
   updateConnectionStatus('💾 Lokaler Speicher (Offline-Modus)');
 }
 
-// ========== BIER HINZUFÜGEN ==========
 async function addBeerLocal(name) {
   let data = loadLocalData();
   if (!data) { data = { history: [] }; names.forEach(n => data[n] = 0); }
@@ -782,7 +495,6 @@ async function addBeer(name) {
   else await addBeerLocal(name);
 }
 
-// ========== FIREBASE INIT ==========
 async function initFirebase() {
   updateConnectionStatus('📡 Verbinde mit Firebase...');
   try {
@@ -793,23 +505,18 @@ async function initFirebase() {
     mainDocRef = doc(db, "strichliste", "juii_main");
     const testSnap = await getDoc(mainDocRef);
     if (!testSnap.exists()) { 
-      // Dokument existiert nicht – wir legen es an (KEIN LÖSCHEN!)
       const emptyData = { history: [] }; 
       names.forEach(n => emptyData[n] = 0); 
-      const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-      await setDoc(mainDocRef, emptyData);
       renderMainTable(emptyData); 
-      updateHistoryUI([]); 
       renderMonthlyChart([]);
     } else {
       const data = testSnap.data();
       const renderData = {};
       names.forEach(n => renderData[n] = data[n] || 0);
       renderMainTable(renderData);
-      updateHistoryUI(data.history || []);
       renderMonthlyChart(data.history || []);
     }
-    updateConnectionStatus('✅ Firebase verbunden (Live-Synchronisation) – Datenbank gesichert');
+    updateConnectionStatus('✅ Firebase verbunden (Live-Synchronisation)');
     useFirebase = true;
     unsubscribe = onSnapshot(mainDocRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -817,47 +524,17 @@ async function initFirebase() {
         const newData = {};
         names.forEach(n => newData[n] = typeof snapData[n] === 'number' ? snapData[n] : 0);
         renderMainTable(newData);
-        updateHistoryUI(snapData.history || []);
         renderMonthlyChart(snapData.history || []);
       }
     });
     return true;
   } catch (err) { 
     console.error("Firebase Fehler:", err); 
-    updateConnectionStatus('⚠️ Firebase nicht erreichbar – Verwende lokalen Speicher (Datenbank gesichert)'); 
+    updateConnectionStatus('⚠️ Firebase nicht erreichbar – Verwende lokalen Speicher'); 
     renderLocalData(); 
     useFirebase = false; 
     return false;
   }
-}
-
-// ========== ADMIN FUNKTIONEN ==========
-function loginAdmin() {
-  const pwd = document.getElementById('adminPassword').value;
-  if (pwd === ADMIN_PASSWORD) {
-    isAdminLoggedIn = true;
-    sessionStorage.setItem('adminAuth', 'true');
-    document.getElementById('adminActions').style.display = 'block';
-    document.getElementById('adminPassword').value = '';
-    showToast("✅ Admin-Login erfolgreich!");
-    refreshUI();
-  } else { showToast("❌ Falsches Passwort!", true); document.getElementById('adminPassword').value = ''; }
-}
-
-function logoutAdmin() {
-  isAdminLoggedIn = false;
-  sessionStorage.removeItem('adminAuth');
-  document.getElementById('adminActions').style.display = 'none';
-  refreshUI();
-  showToast("👋 Admin-Logout");
-}
-
-function checkAdminSession() {
-  if (sessionStorage.getItem('adminAuth') === 'true') {
-    isAdminLoggedIn = true;
-    document.getElementById('adminActions').style.display = 'block';
-  }
-  refreshUI();
 }
 
 function handleUrlParam() {
@@ -866,23 +543,14 @@ function handleUrlParam() {
   if (add && names.includes(add)) { setTimeout(() => addBeer(add), 800); window.history.replaceState({}, "", window.location.pathname); }
 }
 
-// ========== START ==========
 async function start() {
-  checkAdminSession();
   await initFirebase();
   handleUrlParam();
-  document.getElementById('loginBtn').onclick = loginAdmin;
-  document.getElementById('logoutBtn').onclick = logoutAdmin;
-  document.getElementById('backupBtn').onclick = createBackup;
-  document.getElementById('resetAllBtn').onclick = () => showResetConfirmPopup('reset');
-  document.getElementById('clearHistoryBtn').onclick = () => showResetConfirmPopup('clearHistory');
   document.getElementById('confirmYesBtn').onclick = async () => { if (pendingPayPerson) await resetBeerCountForPerson(pendingPayPerson); closeConfirmPopup(); };
   document.getElementById('confirmNoBtn').onclick = () => closeConfirmPopup();
-  document.getElementById('resetConfirmYesBtn').onclick = executeResetAction;
-  document.getElementById('resetConfirmNoBtn').onclick = closeResetConfirmPopup;
 }
 
 start();
 </script>
 </body>
-  </html>
+</html>
