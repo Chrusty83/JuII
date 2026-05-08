@@ -271,16 +271,15 @@
 
 <footer>
   <span id="connectionStatus"></span><br>
-  <span style="font-size:10px;">🔒 Keine lokale Speicherung – nur direkte Datenbankverbindung</span>
+  <span style="font-size:10px;">🔒 Nur updateDoc – keine Überschreibungen. History kann nur wachsen.</span>
 </footer>
 
 <script>
 // ============================================================
-// WICHTIG: Diese App speichert KEINE Daten lokal!
-// - Kein localStorage
-// - Kein IndexedDB
-// - Kein Cache
-// - Nur Firebase Live-Verbindung
+// WICHTIG: Verwendet NUR updateDoc() – kein setDoc() mehr!
+// - History wird mit arrayUnion() hinzugefügt (niemals gelöscht)
+// - Biere werden mit increment() geändert (kein Lesen vor Schreiben)
+// - Kein Überschreiben des gesamten Dokuments
 // ============================================================
 
 const BEER_PRICE = 2.00;
@@ -295,10 +294,11 @@ const FIREBASE_CONFIG = {
 
 let isOnline = false;
 let mainDocRef = null;
+let db = null;
 let unsubscribe = null;
 let beerChart = null;
 let pendingPayPerson = null;
-let pendingPayAmount = 0;
+let pendingPayCount = 0;
 
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 
@@ -334,6 +334,7 @@ function showToast(message, isError = false) {
 
 function escapeHtml(str) { return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
 function formatEuro(amount) { return amount === Math.floor(amount) ? `${Math.floor(amount)} €` : `${amount.toFixed(2)} €`; }
+
 function updateConnectionStatus(msg, isError = false) { 
   const div = document.getElementById('connectionStatus'); 
   if (div) {
@@ -351,35 +352,76 @@ function showConfirmPopup(name, count) {
   if (!isOnline) { showToast("Keine Verbindung zur Datenbank! Bitte später versuchen.", true); return; }
   
   pendingPayPerson = name;
-  pendingPayAmount = count * BEER_PRICE;
+  pendingPayCount = count;
   document.getElementById('confirmName').innerText = name;
-  document.getElementById('confirmAmount').innerHTML = `${count} 🍺 = ${formatEuro(pendingPayAmount)}`;
+  document.getElementById('confirmAmount').innerHTML = `${count} 🍺 = ${formatEuro(count * BEER_PRICE)}`;
   document.getElementById('confirmPopup').style.display = 'flex';
 }
 function closeConfirmPopup() { document.getElementById('confirmPopup').style.display = 'none'; pendingPayPerson = null; }
 
-// Bezahlen: Setzt die Biere einer Person auf 0 (NUR in Firebase)
+// ============================================================
+// SICHERE FUNKTIONEN NUR MIT updateDoc() UND arrayUnion()
+// ============================================================
+
+// +1 Bier mit increment() – kein Lesen vor dem Schreiben nötig!
+async function addBeer(name) {
+  if (!isOnline) {
+    showToast("❌ Keine Verbindung zur Datenbank!", true);
+    return false;
+  }
+  if (!mainDocRef || !db) return false;
+  
+  try {
+    const { updateDoc, increment, arrayUnion } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    
+    // Atomic update: increment und history hinzufügen in EINEM Schritt
+    await updateDoc(mainDocRef, {
+      [name]: increment(1),
+      history: arrayUnion({ name, time: new Date().toISOString() })
+    });
+    
+    showToast(`🍺 ${name} +1 Bier`);
+    return true;
+  } catch (error) {
+    console.error("Fehler beim Hinzufügen:", error);
+    showToast("❌ Fehler beim Hinzufügen", true);
+    return false;
+  }
+}
+
+// Bezahlen: Setzt Biere einer Person auf 0
 async function resetBeerCountForPerson(person) {
   if (!person) return;
-  if (!isOnline) { showToast("Keine Verbindung zur Datenbank! Bitte später versuchen.", true); return; }
+  if (!isOnline) { showToast("Keine Verbindung zur Datenbank!", true); return; }
+  if (!mainDocRef || !db) return;
   
-  if (mainDocRef) {
-    const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+  try {
+    const { updateDoc, arrayUnion, getDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    
+    // Erst den aktuellen Stand lesen (für die Bestätigungsmeldung)
     const snap = await getDoc(mainDocRef);
-    if (snap.exists()) {
-      let current = snap.data();
-      const oldCount = current[person] || 0;
-      current[person] = 0;
-      current.history = [...(current.history || []), { 
+    const oldCount = snap.exists() ? (snap.data()[person] || 0) : 0;
+    
+    // Update mit set auf 0
+    await updateDoc(mainDocRef, {
+      [person]: 0,
+      history: arrayUnion({ 
         name: `${person} (bezahlt: ${oldCount} Bier = ${formatEuro(oldCount * BEER_PRICE)})`, 
         time: new Date().toISOString() 
-      }];
-      await setDoc(mainDocRef, current);
-      showToast(`✅ ${person} hat ${oldCount} Bier bezahlt (${formatEuro(oldCount * BEER_PRICE)})`);
-    }
+      })
+    });
+    
+    showToast(`✅ ${person} hat ${oldCount} Bier bezahlt (${formatEuro(oldCount * BEER_PRICE)})`);
+  } catch (error) {
+    console.error("Fehler beim Bezahlen:", error);
+    showToast("❌ Fehler beim Bezahlen", true);
   }
   closeConfirmPopup();
 }
+
+// ============================================================
+// RENDER FUNKTIONEN
+// ============================================================
 
 function getMonthName(year, month) { return new Date(year, month - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' }); }
 
@@ -471,48 +513,26 @@ function renderMonthlyChart(historyArray) {
   updateMonthStats(realHistory);
 }
 
-// +1 Bier hinzufügen (NUR in Firebase, KEIN localStorage!)
-async function addBeerFirebase(name) {
-  if (!isOnline) {
-    showToast("❌ Keine Verbindung zur Datenbank! Bitte später versuchen.", true);
-    return false;
-  }
-  if (!mainDocRef) return false;
-  
-  const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-  const snap = await getDoc(mainDocRef);
-  let current = snap.exists() ? snap.data() : {};
-  const oldCount = current[name] || 0;
-  current[name] = oldCount + 1;
-  current.history = [...(current.history || []), { name, time: new Date().toISOString() }];
-  await setDoc(mainDocRef, current);
-  showToast(`🍺 ${name} +1 Bier (neuer Stand: ${current[name]} Bier)`);
-  return true;
-}
+// ============================================================
+// FIREBASE INIT – NUR einmalig mit setDoc (falls Dokument nicht existiert)
+// ============================================================
 
-async function addBeer(name) {
-  await addBeerFirebase(name);
-}
-
-// Firebase initialisieren – KEIN localStorage Fallback!
 async function initFirebase() {
-  updateConnectionStatus('📡 Verbinde mit Firebase...');
   updateConnectionStatus('📡 Verbinde mit Firebase...');
   
   try {
     const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js");
-    const { getFirestore, doc, getDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const { getFirestore, doc, getDoc, onSnapshot, setDoc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    
     const app = initializeApp(FIREBASE_CONFIG);
-    const db = getFirestore(app);
+    db = getFirestore(app);
     mainDocRef = doc(db, "strichliste", "juii_main");
     
-    // Prüfe ob Dokument existiert
+    // Prüfe ob Dokument existiert – NUR HIER wird einmalig setDoc verwendet!
     const testSnap = await getDoc(mainDocRef);
     if (!testSnap.exists()) { 
-      // Erstelle leeres Dokument (nur einmalig)
       const emptyData = { history: [] }; 
       names.forEach(n => emptyData[n] = 0); 
-      const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
       await setDoc(mainDocRef, emptyData);
       renderMainTable(emptyData); 
       renderMonthlyChart([]);
@@ -523,7 +543,6 @@ async function initFirebase() {
       names.forEach(n => renderData[n] = data[n] || 0);
       renderMainTable(renderData);
       renderMonthlyChart(data.history || []);
-      updateConnectionStatus('✅ Firebase verbunden (Live-Synchronisation)');
     }
     
     isOnline = true;
@@ -550,7 +569,6 @@ async function initFirebase() {
     isOnline = false;
     updateConnectionStatus('❌ Firebase nicht erreichbar! Bitte Internetverbindung prüfen.', true);
     
-    // Zeige Fehlermeldung in der Tabelle
     const tbody = document.getElementById('tableBody');
     if (tbody) {
       tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#ff8888;">
