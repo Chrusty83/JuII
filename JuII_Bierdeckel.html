@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>JUII Bierdeckel – Strichliste</title>
+  <title>JUII Bierdeckel – Strichliste (optimiert)</title>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   
@@ -32,14 +32,6 @@
       padding: 16px 12px;
       margin: 20px 0;
       border: 1px solid #2c2c3a;
-    }
-    .warning-banner {
-      background: #c44536;
-      color: white;
-      padding: 8px;
-      border-radius: 12px;
-      margin-bottom: 15px;
-      font-size: 12px;
     }
     table {
       margin: 16px auto;
@@ -72,6 +64,7 @@
     }
     button:active { transform: scale(0.96); }
     button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
     
     .add { background: #0a84ff; color: white; }
     .pay { background: #2e7d64; color: white; }
@@ -150,6 +143,9 @@
       pointer-events: none;
       white-space: nowrap;
     }
+    .toast-popup.error { background: #c44536; }
+    .toast-popup.retry { background: #e68a2e; }
+    
     @keyframes fadeInUp {
       from {
         opacity: 0;
@@ -223,6 +219,13 @@
       margin: 10px 0;
       display: none;
     }
+    
+    /* Deaktivierte Buttons während des Ladens */
+    button.loading {
+      opacity: 0.6;
+      transform: none;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
@@ -230,7 +233,7 @@
 <h1>JUII BIERDECKEL</h1>
 
 <div id="offlineWarning" class="offline-warning">
-  ⚠️ Keine Verbindung zur Datenbank! Bitte Internetverbindung prüfen.
+  ⚠️ Keine Verbindung zur Datenbank! Änderungen werden automatisch wiederholt.
 </div>
 
 <div class="glass-card">
@@ -241,7 +244,7 @@
         <tr><th>Name</th><th>🍺 Anzahl / Kosten</th><th>Aktionen</th></tr>
       </thead>
       <tbody id="tableBody">
-        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></tr>
+        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></table>
       </tbody>
     </table>
   </div>
@@ -271,16 +274,15 @@
 
 <footer>
   <span id="connectionStatus"></span><br>
-  <span style="font-size:10px;">🔒 Keine lokale Speicherung – nur direkte Datenbankverbindung</span>
+  <span style="font-size:10px;">🔒 Optimistic Updates + Retry-Logic – Ihre Daten sind sicher</span>
 </footer>
 
 <script>
 // ============================================================
-// WICHTIG: Diese App speichert KEINE Daten lokal!
-// - Kein localStorage
-// - Kein IndexedDB
-// - Kein Cache
-// - Nur Firebase Live-Verbindung
+// OPTIMIERUNGEN (Priorität 1):
+// 1. Optimistic Updates – UI reagiert sofort
+// 2. Retry-Logic mit Exponential Backoff – automatische Wiederholung
+// 3. Security Rules (zum Kopieren in Firebase Console)
 // ============================================================
 
 const BEER_PRICE = 2.00;
@@ -293,14 +295,23 @@ const FIREBASE_CONFIG = {
   appId: "1:8081599971:web:6cc277281b040d995304d6"
 };
 
-let isOnline = false;
+let isOnline = true;
 let mainDocRef = null;
+let db = null;
 let unsubscribe = null;
 let beerChart = null;
 let pendingPayPerson = null;
-let pendingPayAmount = 0;
+let pendingPayCount = 0;
+
+// Aktuelle Daten für Optimistic Updates
+let currentData = {};
+let pendingOperations = new Map(); // Für Retry-Logic
 
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
+
+// ============================================================
+// HELFER FUNKTIONEN
+// ============================================================
 
 function getTotalBeerCount(data) {
   if (!data) return 0;
@@ -319,21 +330,21 @@ function updateTotalDisplay(data) {
   }
 }
 
-function showToast(message, isError = false) {
+function showToast(message, type = 'success') {
   const toast = document.createElement('div');
-  toast.className = 'toast-popup';
-  toast.style.background = isError ? '#c44536' : '#2e7d64';
+  toast.className = `toast-popup ${type === 'error' ? 'error' : (type === 'retry' ? 'retry' : '')}`;
   toast.textContent = message;
   document.body.appendChild(toast);
   setTimeout(() => {
     toast.style.opacity = '0';
     toast.style.transition = 'opacity 0.3s';
     setTimeout(() => toast.remove(), 300);
-  }, 2500);
+  }, 3000);
 }
 
 function escapeHtml(str) { return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
 function formatEuro(amount) { return amount === Math.floor(amount) ? `${Math.floor(amount)} €` : `${amount.toFixed(2)} €`; }
+
 function updateConnectionStatus(msg, isError = false) { 
   const div = document.getElementById('connectionStatus'); 
   if (div) {
@@ -346,40 +357,136 @@ function updateConnectionStatus(msg, isError = false) {
   }
 }
 
-function showConfirmPopup(name, count) {
-  if (count === 0) { showToast("Keine offenen Biere zum Bezahlen.", true); return; }
-  if (!isOnline) { showToast("Keine Verbindung zur Datenbank! Bitte später versuchen.", true); return; }
-  
-  pendingPayPerson = name;
-  pendingPayAmount = count * BEER_PRICE;
-  document.getElementById('confirmName').innerText = name;
-  document.getElementById('confirmAmount').innerHTML = `${count} 🍺 = ${formatEuro(pendingPayAmount)}`;
-  document.getElementById('confirmPopup').style.display = 'flex';
-}
-function closeConfirmPopup() { document.getElementById('confirmPopup').style.display = 'none'; pendingPayPerson = null; }
+// ============================================================
+// RETRY-LOGIC MIT EXPONENTIAL BACKOFF
+// ============================================================
 
-// Bezahlen: Setzt die Biere einer Person auf 0 (NUR in Firebase)
-async function resetBeerCountForPerson(person) {
-  if (!person) return;
-  if (!isOnline) { showToast("Keine Verbindung zur Datenbank! Bitte später versuchen.", true); return; }
+async function firestoreOperationWithRetry(operation, name, maxRetries = 3) {
+  let lastError;
   
-  if (mainDocRef) {
-    const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-    const snap = await getDoc(mainDocRef);
-    if (snap.exists()) {
-      let current = snap.data();
-      const oldCount = current[person] || 0;
-      current[person] = 0;
-      current.history = [...(current.history || []), { 
-        name: `${person} (bezahlt: ${oldCount} Bier = ${formatEuro(oldCount * BEER_PRICE)})`, 
-        time: new Date().toISOString() 
-      }];
-      await setDoc(mainDocRef, current);
-      showToast(`✅ ${person} hat ${oldCount} Bier bezahlt (${formatEuro(oldCount * BEER_PRICE)})`);
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await operation();
+      if (attempt > 1) {
+        showToast(`✅ ${name} – Erfolg nach ${attempt} Versuchen`, 'success');
+      }
+      return result;
+    } catch (error) {
+      lastError = error;
+      console.error(`Versuch ${attempt} fehlgeschlagen:`, error);
+      
+      if (attempt === maxRetries) {
+        showToast(`❌ ${name} – Fehler nach ${maxRetries} Versuchen`, 'error');
+        throw error;
+      }
+      
+      // Exponential Backoff: 1s, 2s, 4s
+      const delay = Math.pow(2, attempt - 1) * 1000;
+      showToast(`🔄 ${name} – Wiederholung in ${delay/1000}s (Versuch ${attempt + 1}/${maxRetries})`, 'retry');
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
+  throw lastError;
+}
+
+// ============================================================
+// OPTIMISTIC UPDATE FUNKTIONEN
+// ============================================================
+
+// +1 Bier mit Optimistic Update + Retry
+async function addBeer(name) {
+  if (!mainDocRef || !db) {
+    showToast("❌ Keine Verbindung zur Datenbank", 'error');
+    return false;
+  }
+  
+  // 1. OPTIMISTIC UPDATE: UI sofort aktualisieren
+  const oldData = { ...currentData };
+  const oldCount = currentData[name] || 0;
+  const newCount = oldCount + 1;
+  
+  // Lokale Daten aktualisieren
+  currentData[name] = newCount;
+  renderMainTable(currentData);
+  showToast(`🍺 ${name} +1 Bier (wird gespeichert...)`, 'retry');
+  
+  // 2. FIREBASE UPDATE MIT RETRY
+  try {
+    const { updateDoc, increment, arrayUnion } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    
+    await firestoreOperationWithRetry(async () => {
+      await updateDoc(mainDocRef, {
+        [name]: increment(1),
+        history: arrayUnion({ name, time: new Date().toISOString() })
+      });
+      return true;
+    }, `+1 Bier für ${name}`);
+    
+    showToast(`✅ ${name} +1 Bier (gespeichert)`, 'success');
+    return true;
+    
+  } catch (error) {
+    // 3. ROLLBACK bei Fehler
+    currentData = oldData;
+    renderMainTable(currentData);
+    showToast(`❌ ${name} +1 Bier fehlgeschlagen – Änderung rückgängig gemacht`, 'error');
+    return false;
+  }
+}
+
+// Bezahlen mit Optimistic Update + Retry
+async function resetBeerCountForPerson(person) {
+  if (!person) return;
+  if (!mainDocRef || !db) {
+    showToast("❌ Keine Verbindung zur Datenbank", 'error');
+    return;
+  }
+  
+  // 1. OPTIMISTIC UPDATE
+  const oldData = { ...currentData };
+  const oldCount = currentData[person] || 0;
+  
+  if (oldCount === 0) {
+    showToast(`${person} hat keine offenen Biere`, 'error');
+    closeConfirmPopup();
+    return;
+  }
+  
+  // Lokale Daten aktualisieren
+  currentData[person] = 0;
+  renderMainTable(currentData);
+  showToast(`🍺 ${person} bezahlt ${oldCount} Bier (wird gespeichert...)`, 'retry');
+  
+  // 2. FIREBASE UPDATE MIT RETRY
+  try {
+    const { updateDoc, arrayUnion } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    
+    await firestoreOperationWithRetry(async () => {
+      await updateDoc(mainDocRef, {
+        [person]: 0,
+        history: arrayUnion({ 
+          name: `${person} (bezahlt: ${oldCount} Bier = ${formatEuro(oldCount * BEER_PRICE)})`, 
+          time: new Date().toISOString() 
+        })
+      });
+      return true;
+    }, `Bezahlung für ${person}`);
+    
+    showToast(`✅ ${person} hat ${oldCount} Bier bezahlt (${formatEuro(oldCount * BEER_PRICE)})`, 'success');
+    
+  } catch (error) {
+    // 3. ROLLBACK bei Fehler
+    currentData = oldData;
+    renderMainTable(currentData);
+    showToast(`❌ Bezahlung für ${person} fehlgeschlagen – Änderung rückgängig gemacht`, 'error');
+  }
+  
   closeConfirmPopup();
 }
+
+// ============================================================
+// RENDER FUNKTIONEN
+// ============================================================
 
 function getMonthName(year, month) { return new Date(year, month - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' }); }
 
@@ -436,10 +543,10 @@ function renderMainTable(data) {
       <td style="font-weight:500;">${escapeHtml(name)}</td>
       <td class="beer-icons">${icons}<br><span class="beer-cost">${formatEuro(total)}</span></td>
       <td><div class="action-buttons">
-        <button class="add" data-name="${escapeHtml(name)}" ${!isOnline ? 'disabled style="opacity:0.5;"' : ''}>+1 Bier</button>
-        <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}" ${!isOnline ? 'disabled style="opacity:0.5;"' : ''}>bezahlt</button>
+        <button class="add" data-name="${escapeHtml(name)}">+1 Bier</button>
+        <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">bezahlt</button>
       </div></td>
-    </tr>`;
+    </table>`;
   }
   
   document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
@@ -471,59 +578,49 @@ function renderMonthlyChart(historyArray) {
   updateMonthStats(realHistory);
 }
 
-// +1 Bier hinzufügen (NUR in Firebase, KEIN localStorage!)
-async function addBeerFirebase(name) {
-  if (!isOnline) {
-    showToast("❌ Keine Verbindung zur Datenbank! Bitte später versuchen.", true);
-    return false;
-  }
-  if (!mainDocRef) return false;
+function showConfirmPopup(name, count) {
+  if (count === 0) { showToast("Keine offenen Biere zum Bezahlen.", 'error'); return; }
+  if (!isOnline) { showToast("Keine Verbindung zur Datenbank!", 'error'); return; }
   
-  const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-  const snap = await getDoc(mainDocRef);
-  let current = snap.exists() ? snap.data() : {};
-  const oldCount = current[name] || 0;
-  current[name] = oldCount + 1;
-  current.history = [...(current.history || []), { name, time: new Date().toISOString() }];
-  await setDoc(mainDocRef, current);
-  showToast(`🍺 ${name} +1 Bier (neuer Stand: ${current[name]} Bier)`);
-  return true;
+  pendingPayPerson = name;
+  pendingPayCount = count;
+  document.getElementById('confirmName').innerText = name;
+  document.getElementById('confirmAmount').innerHTML = `${count} 🍺 = ${formatEuro(count * BEER_PRICE)}`;
+  document.getElementById('confirmPopup').style.display = 'flex';
 }
+function closeConfirmPopup() { document.getElementById('confirmPopup').style.display = 'none'; pendingPayPerson = null; }
 
-async function addBeer(name) {
-  await addBeerFirebase(name);
-}
+// ============================================================
+// FIREBASE INIT
+// ============================================================
 
-// Firebase initialisieren – KEIN localStorage Fallback!
 async function initFirebase() {
-  updateConnectionStatus('📡 Verbinde mit Firebase...');
   updateConnectionStatus('📡 Verbinde mit Firebase...');
   
   try {
     const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js");
-    const { getFirestore, doc, getDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const { getFirestore, doc, getDoc, onSnapshot, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    
     const app = initializeApp(FIREBASE_CONFIG);
-    const db = getFirestore(app);
+    db = getFirestore(app);
     mainDocRef = doc(db, "strichliste", "juii_main");
     
     // Prüfe ob Dokument existiert
     const testSnap = await getDoc(mainDocRef);
     if (!testSnap.exists()) { 
-      // Erstelle leeres Dokument (nur einmalig)
       const emptyData = { history: [] }; 
       names.forEach(n => emptyData[n] = 0); 
-      const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
       await setDoc(mainDocRef, emptyData);
+      currentData = emptyData;
       renderMainTable(emptyData); 
       renderMonthlyChart([]);
       updateConnectionStatus('✅ Neue Datenbank erstellt');
     } else {
       const data = testSnap.data();
-      const renderData = {};
-      names.forEach(n => renderData[n] = data[n] || 0);
-      renderMainTable(renderData);
+      currentData = {};
+      names.forEach(n => currentData[n] = data[n] || 0);
+      renderMainTable(currentData);
       renderMonthlyChart(data.history || []);
-      updateConnectionStatus('✅ Firebase verbunden (Live-Synchronisation)');
     }
     
     isOnline = true;
@@ -533,9 +630,8 @@ async function initFirebase() {
     unsubscribe = onSnapshot(mainDocRef, (snapshot) => {
       if (snapshot.exists()) {
         const snapData = snapshot.data();
-        const newData = {};
-        names.forEach(n => newData[n] = typeof snapData[n] === 'number' ? snapData[n] : 0);
-        renderMainTable(newData);
+        names.forEach(n => currentData[n] = typeof snapData[n] === 'number' ? snapData[n] : 0);
+        renderMainTable(currentData);
         renderMonthlyChart(snapData.history || []);
       }
     }, (error) => {
@@ -550,7 +646,6 @@ async function initFirebase() {
     isOnline = false;
     updateConnectionStatus('❌ Firebase nicht erreichbar! Bitte Internetverbindung prüfen.', true);
     
-    // Zeige Fehlermeldung in der Tabelle
     const tbody = document.getElementById('tableBody');
     if (tbody) {
       tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#ff8888;">
@@ -568,18 +663,50 @@ function handleUrlParam() {
   if (add && names.includes(add)) { 
     setTimeout(() => {
       if (isOnline) addBeer(add);
-      else showToast("❌ Keine Verbindung – kann kein Bier hinzufügen", true);
+      else showToast("❌ Keine Verbindung – kann kein Bier hinzufügen", 'error');
     }, 800); 
     window.history.replaceState({}, "", window.location.pathname);
   }
 }
+
+// ============================================================
+// SECURITY RULES (Zum Kopieren in die Firebase Console)
+// ============================================================
+/*
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /strichliste/juii_main {
+      // Lesen für alle erlaubt
+      allow read: if true;
+      
+      // Schreiben nur mit diesen Bedingungen:
+      allow write: if 
+        // Keine Löschung des gesamten Dokuments
+        request.resource.data.keys().size() >= 21 &&
+        // Nur erlaubte Felder dürfen geändert werden
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(names.concat(['history'])) &&
+        // History darf nur wachsen (keine Löschung von Einträgen)
+        (resource.data.history == null || 
+         request.resource.data.history.size() >= resource.data.history.size()) &&
+        // Keine negativen Bier-Zähler
+        request.resource.data.values().all(v => v >= 0);
+    }
+  }
+}
+*/
+
+// ============================================================
+// START
+// ============================================================
 
 async function start() {
   await initFirebase();
   handleUrlParam();
   document.getElementById('confirmYesBtn').onclick = async () => { 
     if (pendingPayPerson && isOnline) await resetBeerCountForPerson(pendingPayPerson); 
-    else if (!isOnline) showToast("❌ Keine Verbindung – Bezahlen nicht möglich", true);
+    else if (!isOnline) showToast("❌ Keine Verbindung – Bezahlen nicht möglich", 'error');
     closeConfirmPopup(); 
   };
   document.getElementById('confirmNoBtn').onclick = () => closeConfirmPopup();
