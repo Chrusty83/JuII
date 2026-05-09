@@ -220,7 +220,6 @@
       display: none;
     }
     
-    /* Deaktivierte Buttons während des Ladens */
     button.loading {
       opacity: 0.6;
       transform: none;
@@ -244,7 +243,7 @@
         <tr><th>Name</th><th>🍺 Anzahl / Kosten</th><th>Aktionen</th></tr>
       </thead>
       <tbody id="tableBody">
-        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></table>
+        <tr><td colspan="3" style="text-align:center;">📡 Lade Daten... <span class="loading-spinner"></span></td></tr>
       </tbody>
     </table>
   </div>
@@ -282,7 +281,7 @@
 // OPTIMIERUNGEN (Priorität 1):
 // 1. Optimistic Updates – UI reagiert sofort
 // 2. Retry-Logic mit Exponential Backoff – automatische Wiederholung
-// 3. Security Rules (zum Kopieren in Firebase Console)
+// 3. Toast zeigt jetzt die aktuelle Gesamtanzahl der Biere an
 // ============================================================
 
 const BEER_PRICE = 2.00;
@@ -305,7 +304,6 @@ let pendingPayCount = 0;
 
 // Aktuelle Daten für Optimistic Updates
 let currentData = {};
-let pendingOperations = new Map(); // Für Retry-Logic
 
 const names = ["Andi","Basti G.","Benny","Bernd G.","Bernd K.","Chris","Clemens","Dietmar","Donde","Jakob","Lukas","Max","Micha","Hainzl","Philipp","Basti B.","Simon","Schwob","Tim","Timo","Tom"];
 
@@ -380,7 +378,6 @@ async function firestoreOperationWithRetry(operation, name, maxRetries = 3) {
         throw error;
       }
       
-      // Exponential Backoff: 1s, 2s, 4s
       const delay = Math.pow(2, attempt - 1) * 1000;
       showToast(`🔄 ${name} – Wiederholung in ${delay/1000}s (Versuch ${attempt + 1}/${maxRetries})`, 'retry');
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -408,7 +405,7 @@ async function addBeer(name) {
   // Lokale Daten aktualisieren
   currentData[name] = newCount;
   renderMainTable(currentData);
-  showToast(`🍺 ${name} +1 Bier (wird gespeichert...)`, 'retry');
+  showToast(`🍺 ${name} +1 Bier → neuer Stand: ${newCount} ${newCount === 1 ? 'Bier' : 'Biere'} (wird gespeichert...)`, 'retry');
   
   // 2. FIREBASE UPDATE MIT RETRY
   try {
@@ -422,7 +419,9 @@ async function addBeer(name) {
       return true;
     }, `+1 Bier für ${name}`);
     
-    showToast(`✅ ${name} +1 Bier (gespeichert)`, 'success');
+    // Endgültige Bestätigung mit der aktuellen Anzahl
+    const finalCount = currentData[name];
+    showToast(`✅ ${name} +1 Bier gespeichert → ${finalCount} ${finalCount === 1 ? 'Bier' : 'Biere'} insgesamt`, 'success');
     return true;
     
   } catch (error) {
@@ -455,7 +454,7 @@ async function resetBeerCountForPerson(person) {
   // Lokale Daten aktualisieren
   currentData[person] = 0;
   renderMainTable(currentData);
-  showToast(`🍺 ${person} bezahlt ${oldCount} Bier (wird gespeichert...)`, 'retry');
+  showToast(`🍺 ${person} bezahlt ${oldCount} ${oldCount === 1 ? 'Bier' : 'Biere'} → neuer Stand: 0 (wird gespeichert...)`, 'retry');
   
   // 2. FIREBASE UPDATE MIT RETRY
   try {
@@ -472,7 +471,7 @@ async function resetBeerCountForPerson(person) {
       return true;
     }, `Bezahlung für ${person}`);
     
-    showToast(`✅ ${person} hat ${oldCount} Bier bezahlt (${formatEuro(oldCount * BEER_PRICE)})`, 'success');
+    showToast(`✅ ${person} hat ${oldCount} ${oldCount === 1 ? 'Bier' : 'Biere'} bezahlt (${formatEuro(oldCount * BEER_PRICE)}) → jetzt 0`, 'success');
     
   } catch (error) {
     // 3. ROLLBACK bei Fehler
@@ -546,7 +545,7 @@ function renderMainTable(data) {
         <button class="add" data-name="${escapeHtml(name)}">+1 Bier</button>
         <button class="pay" data-name-pay="${escapeHtml(name)}" data-count="${count}">bezahlt</button>
       </div></td>
-    </table>`;
+    </tr>`;
   }
   
   document.querySelectorAll('.add').forEach(btn => { btn.onclick = () => addBeer(btn.dataset.name); });
@@ -605,7 +604,6 @@ async function initFirebase() {
     db = getFirestore(app);
     mainDocRef = doc(db, "strichliste", "juii_main");
     
-    // Prüfe ob Dokument existiert
     const testSnap = await getDoc(mainDocRef);
     if (!testSnap.exists()) { 
       const emptyData = { history: [] }; 
@@ -626,7 +624,6 @@ async function initFirebase() {
     isOnline = true;
     updateConnectionStatus('✅ Firebase verbunden (Live-Synchronisation)');
     
-    // Live-Listener für Echtzeit-Updates
     unsubscribe = onSnapshot(mainDocRef, (snapshot) => {
       if (snapshot.exists()) {
         const snapData = snapshot.data();
@@ -668,34 +665,6 @@ function handleUrlParam() {
     window.history.replaceState({}, "", window.location.pathname);
   }
 }
-
-// ============================================================
-// SECURITY RULES (Zum Kopieren in die Firebase Console)
-// ============================================================
-/*
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /strichliste/juii_main {
-      // Lesen für alle erlaubt
-      allow read: if true;
-      
-      // Schreiben nur mit diesen Bedingungen:
-      allow write: if 
-        // Keine Löschung des gesamten Dokuments
-        request.resource.data.keys().size() >= 21 &&
-        // Nur erlaubte Felder dürfen geändert werden
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(names.concat(['history'])) &&
-        // History darf nur wachsen (keine Löschung von Einträgen)
-        (resource.data.history == null || 
-         request.resource.data.history.size() >= resource.data.history.size()) &&
-        // Keine negativen Bier-Zähler
-        request.resource.data.values().all(v => v >= 0);
-    }
-  }
-}
-*/
 
 // ============================================================
 // START
