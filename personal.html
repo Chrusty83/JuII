@@ -86,16 +86,6 @@
             border-radius: 20px;
             display: inline-block;
         }
-        #extraStatsDisplay {
-            margin-top: 10px;
-            color: #f9b43a;
-            font-weight: bold;
-            font-size: 1.1rem;
-            background: #252536;
-            padding: 8px 16px;
-            border-radius: 20px;
-            display: inline-block;
-        }
         footer {
             font-size: 11px;
             margin-top: 30px;
@@ -131,7 +121,7 @@
         <div id="chartLoading" class="loading">📡 Warte auf Daten...</div>
         <canvas id="personalChart" style="display: none;"></canvas>
         <div id="averageDisplay" class="stat-box"></div>
-        <div id="extraStatsDisplay"></div>
+        <div id="extraStatsDisplay" class="stat-box"></div>
     </div>
 
     <footer><span id="connectionStatus">🔌 Verbinde...</span></footer>
@@ -271,8 +261,8 @@
             return result;
         }
 
-        // Formatierung: keine Nachkommastellen bei ganzen Zahlen
         function fmtNum(val) {
+            // Keine Nachkommastellen bei ganzen Zahlen
             if (val % 1 === 0) return val.toString();
             return val.toFixed(2);
         }
@@ -335,7 +325,7 @@
             }
             averageDisplay.textContent = avgText;
 
-            // Zusätzliche Durchschnittswerte über den gesamten Zeitraum
+            // Zusätzliche Durchschnittswerte (untereinander)
             const personBeersAll = filterBeerEntries(currentHistory).filter(e => e.name === name);
             if (personBeersAll.length === 0) {
                 extraStatsDisplay.innerHTML = 'Keine Biereinträge vorhanden.';
@@ -355,7 +345,8 @@
                 });
                 const avgPerDay = personBeersAll.length / days.size;
                 const avgThursday = thursdays.size > 0 ? thursdayTotal / thursdays.size : 0;
-                extraStatsDisplay.innerHTML = `📅 Ø Biere/Tag: ${fmtNum(avgPerDay)} &nbsp;|&nbsp; 🍻 Ø Biere/Do: ${fmtNum(avgThursday)}`;
+                // Werte untereinander mit Zeilenumbruch
+                extraStatsDisplay.innerHTML = `📅 Ø Biere/Tag: ${fmtNum(avgPerDay)}<br>🍻 Ø Biere/Do: ${fmtNum(avgThursday)}`;
             }
 
             const ctx = canvas.getContext('2d');
