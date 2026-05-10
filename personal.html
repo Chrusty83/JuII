@@ -76,8 +76,8 @@
             max-height: 400px;
             width: 100% !important;
         }
-        #averageDisplay {
-            margin-top: 15px;
+        .stat-box {
+            margin-top: 10px;
             color: #f9b43a;
             font-weight: bold;
             font-size: 1.1rem;
@@ -88,8 +88,13 @@
         }
         #extraStatsDisplay {
             margin-top: 10px;
-            color: #ffd966;
-            font-size: 0.95rem;
+            color: #f9b43a;
+            font-weight: bold;
+            font-size: 1.1rem;
+            background: #252536;
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: inline-block;
         }
         footer {
             font-size: 11px;
@@ -116,8 +121,8 @@
             <label for="metricSelect">📊 Metrik:</label>
             <select id="metricSelect">
                 <option value="count">Anzahl Biere pro Monat</option>
-                <option value="avgDuration">Ø Trinkdauer pro Tag (Min.)</option>
-                <option value="fastest">Schnellstes Bier (Min.)</option>
+                <option value="avgDuration">Ø Trinkdauer pro Tag (Min., ab 2 Min.)</option>
+                <option value="fastest">Schnellstes Bier (Min., ab 2 Min.)</option>
             </select>
         </div>
     </div>
@@ -125,7 +130,7 @@
     <div id="chartContainer">
         <div id="chartLoading" class="loading">📡 Warte auf Daten...</div>
         <canvas id="personalChart" style="display: none;"></canvas>
-        <div id="averageDisplay"></div>
+        <div id="averageDisplay" class="stat-box"></div>
         <div id="extraStatsDisplay"></div>
     </div>
 
@@ -191,7 +196,6 @@
             return counts;
         }
 
-        // Geändert: Intervalle < 2 Min. werden ignoriert
         function getAverageDrinkDurationPerDay(historyArray, name) {
             const months = getLast12Months();
             const result = new Array(12).fill(null);
@@ -222,7 +226,7 @@
                     let validIntervals = 0;
                     for (let j = 1; j < times.length; j++) {
                         const diff = (times[j] - times[j - 1]) / (1000 * 60);
-                        if (diff >= 2) {        // nur Intervalle ab 2 Minuten
+                        if (diff >= 2) {
                             totalDiff += diff;
                             validIntervals++;
                         }
@@ -239,7 +243,6 @@
             return result;
         }
 
-        // Geändert: schnellstes Bier nur ab 2 Minuten
         function getFastestDrink(historyArray, name) {
             const months = getLast12Months();
             const result = new Array(12).fill(null);
@@ -259,13 +262,19 @@
                 let minDiff = Infinity;
                 for (let j = 1; j < sorted.length; j++) {
                     const diff = (new Date(sorted[j].time) - new Date(sorted[j - 1].time)) / (1000 * 60);
-                    if (diff >= 2 && diff < minDiff) {   // nur Intervalle ab 2 Minuten
+                    if (diff >= 2 && diff < minDiff) {
                         minDiff = diff;
                     }
                 }
                 if (minDiff !== Infinity) result[i] = minDiff;
             }
             return result;
+        }
+
+        // Formatierung: keine Nachkommastellen bei ganzen Zahlen
+        function fmtNum(val) {
+            if (val % 1 === 0) return val.toString();
+            return val.toFixed(2);
         }
 
         function updateChart() {
@@ -317,9 +326,9 @@
                 const sum = validData.reduce((a, b) => a + b, 0);
                 const avg = sum / validData.length;
                 if (metric === 'count') {
-                    avgText = `📊 Durchschnitt: ${avg.toFixed(1)} Biere/Monat (${validData.length} Monate mit Daten)`;
+                    avgText = `📊 Durchschnitt: ${fmtNum(avg)} Biere/Monat (${validData.length} Monate mit Daten)`;
                 } else {
-                    avgText = `📊 Durchschnitt: ${avg.toFixed(1)} Minuten (${validData.length} Monaten mit Daten)`;
+                    avgText = `📊 Durchschnitt: ${fmtNum(avg)} Minuten (${validData.length} Monate mit Daten)`;
                 }
             } else {
                 avgText = 'Keine gültigen Monate für Durchschnitt';
@@ -339,14 +348,14 @@
                     if (isNaN(d)) return;
                     const dateKey = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
                     days.add(dateKey);
-                    if (d.getDay() === 4) { // Donnerstag (0=So, 4=Do)
+                    if (d.getDay() === 4) { // Donnerstag
                         thursdays.add(dateKey);
                         thursdayTotal++;
                     }
                 });
                 const avgPerDay = personBeersAll.length / days.size;
                 const avgThursday = thursdays.size > 0 ? thursdayTotal / thursdays.size : 0;
-                extraStatsDisplay.innerHTML = `📅 Ø Biere pro Tag (an Trinktagen): ${avgPerDay.toFixed(2)} &nbsp;|&nbsp; 🍻 Ø Biere am Donnerstag: ${avgThursday.toFixed(2)}`;
+                extraStatsDisplay.innerHTML = `📅 Ø Biere/Tag: ${fmtNum(avgPerDay)} &nbsp;|&nbsp; 🍻 Ø Biere/Do: ${fmtNum(avgThursday)}`;
             }
 
             const ctx = canvas.getContext('2d');
