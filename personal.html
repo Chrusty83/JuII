@@ -86,6 +86,11 @@
             border-radius: 20px;
             display: inline-block;
         }
+        #extraStatsDisplay {
+            margin-top: 10px;
+            color: #ffd966;
+            font-size: 0.95rem;
+        }
         footer {
             font-size: 11px;
             margin-top: 30px;
@@ -121,6 +126,7 @@
         <div id="chartLoading" class="loading">📡 Warte auf Daten...</div>
         <canvas id="personalChart" style="display: none;"></canvas>
         <div id="averageDisplay"></div>
+        <div id="extraStatsDisplay"></div>
     </div>
 
     <footer><span id="connectionStatus">🔌 Verbinde...</span></footer>
@@ -266,8 +272,10 @@
             const name = document.getElementById('nameSelect').value;
             const metric = document.getElementById('metricSelect').value;
             const averageDisplay = document.getElementById('averageDisplay');
+            const extraStatsDisplay = document.getElementById('extraStatsDisplay');
             if (!name || !currentHistory.length) {
                 averageDisplay.textContent = '';
+                extraStatsDisplay.innerHTML = '';
                 return;
             }
 
@@ -296,6 +304,7 @@
                 loadingDiv.style.display = 'block';
                 loadingDiv.textContent = '📭 Keine Daten für diesen Zeitraum';
                 averageDisplay.textContent = '';
+                extraStatsDisplay.innerHTML = '';
                 return;
             }
 
@@ -316,6 +325,29 @@
                 avgText = 'Keine gültigen Monate für Durchschnitt';
             }
             averageDisplay.textContent = avgText;
+
+            // Zusätzliche Durchschnittswerte über den gesamten Zeitraum
+            const personBeersAll = filterBeerEntries(currentHistory).filter(e => e.name === name);
+            if (personBeersAll.length === 0) {
+                extraStatsDisplay.innerHTML = 'Keine Biereinträge vorhanden.';
+            } else {
+                const days = new Set();
+                const thursdays = new Set();
+                let thursdayTotal = 0;
+                personBeersAll.forEach(e => {
+                    const d = new Date(e.time);
+                    if (isNaN(d)) return;
+                    const dateKey = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+                    days.add(dateKey);
+                    if (d.getDay() === 4) { // Donnerstag (0=So, 4=Do)
+                        thursdays.add(dateKey);
+                        thursdayTotal++;
+                    }
+                });
+                const avgPerDay = personBeersAll.length / days.size;
+                const avgThursday = thursdays.size > 0 ? thursdayTotal / thursdays.size : 0;
+                extraStatsDisplay.innerHTML = `📅 Ø Biere pro Tag (an Trinktagen): ${avgPerDay.toFixed(2)} &nbsp;|&nbsp; 🍻 Ø Biere am Donnerstag: ${avgThursday.toFixed(2)}`;
+            }
 
             const ctx = canvas.getContext('2d');
             personalChart = new Chart(ctx, {
