@@ -168,16 +168,20 @@
             return months;
         }
 
+        // Geändert: Initialwerte sind null, erst bei Bier-Fund wird hochgezählt
         function getMonthlyCounts(historyArray, name) {
             const months = getLast12Months();
-            const counts = new Array(12).fill(0);
+            const counts = new Array(12).fill(null);
             filterBeerEntries(historyArray).forEach(entry => {
                 if (entry.name !== name) return;
                 const d = new Date(entry.time);
                 if (isNaN(d)) return;
                 const key = `${d.getFullYear()}-${d.getMonth()+1}`;
                 const idx = months.findIndex(m => m.key === key);
-                if (idx !== -1) counts[idx]++;
+                if (idx !== -1) {
+                    if (counts[idx] === null) counts[idx] = 1;
+                    else counts[idx]++;
+                }
             });
             return counts;
         }
@@ -289,7 +293,7 @@
             loadingDiv.style.display = 'none';
             canvas.style.display = 'block';
 
-            // Mittelwert berechnen (nur gültige Monate)
+            // Mittelwert nur aus gültigen Monaten
             const validData = data.filter(v => v !== null && v !== undefined);
             let avgText = '';
             if (validData.length > 0) {
@@ -312,7 +316,7 @@
                     labels: months.map(m => m.label),
                     datasets: [{
                         label: yLabel,
-                        data: data.map(v => v === null ? 0 : v),
+                        data: data,  // null-Werte als Lücken behalten
                         backgroundColor: '#f9b43a',
                         borderRadius: 8,
                         borderSkipped: false,
@@ -331,7 +335,7 @@
                             callbacks: {
                                 label: function(context) {
                                     const raw = context.raw;
-                                    if (raw === 0 && data[context.dataIndex] === null) return 'Keine Daten';
+                                    if (raw === null || raw === undefined) return 'Keine Daten';
                                     if (metric === 'count') return `${raw} Bier(e)`;
                                     return `${raw.toFixed(1)} Min.`;
                                 }
