@@ -1,1477 +1,400 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>OGA Bierstatistik - Erweiterte Analyse</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
-  </script>
-  <style>
-    * {
-      box-sizing: border-box;
-    }
-    body {
-      background: #111;
-      color: #f0f0f0;
-      font-family: 'Segoe UI', Roboto, sans-serif;
-      margin: 0;
-      padding: 20px 12px 40px;
-      text-align: center;
-    }
-    h1 {
-      font-size: 2rem;
-      background: linear-gradient(135deg, #f9b43a, #ffd966);
-      background-clip: text;
-      -webkit-background-clip: text;
-      color: transparent;
-    }
-    .glass-card {
-      background: rgba(30, 30, 40, 0.85);
-      backdrop-filter: blur(2px);
-      border-radius: 28px;
-      padding: 16px 12px;
-      margin: 20px 0;
-      border: 1px solid #2c2c3a;
-    }
-    .total-beer-badge {
-      background: #2e7d64;
-      color: white;
-      padding: 8px 20px;
-      border-radius: 60px;
-      display: inline-block;
-      margin-bottom: 15px;
-      font-weight: bold;
-      font-size: 1.1rem;
-    }
-    .total-beer-alltime {
-      background: #5a3e2b;
-      color: #ffd966;
-      padding: 8px 20px;
-      border-radius: 60px;
-      display: inline-block;
-      margin-bottom: 15px;
-      margin-left: 10px;
-      font-weight: bold;
-      font-size: 1.1rem;
-    }
-    .stats-container {
-      display: flex;
-      justify-content: center;
-      gap: 15px;
-      margin-top: 20px;
-      flex-wrap: wrap;
-    }
-    .stat-card {
-      background: #252536;
-      border-radius: 20px;
-      padding: 12px 18px;
-      min-width: 100px;
-      text-align: center;
-      border: 1px solid #3a3a4a;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .stat-card.current-week {
-      background: linear-gradient(135deg, #3a3a5a, #2a2a4a);
-      border: 2px solid #f9b43a;
-      box-shadow: 0 0 15px rgba(249, 180, 58, 0.3);
-      transform: scale(1.02);
-    }
-    .stat-month,
-    .stat-week {
-      font-size: 0.9rem;
-      font-weight: bold;
-      color: #ffd966;
-      margin-bottom: 6px;
-    }
-    .stat-count {
-      font-size: 1.8rem;
-      font-weight: bold;
-      color: #f9b43a;
-    }
-    .stat-label {
-      font-size: 0.7rem;
-      color: #aaa;
-      margin-top: 5px;
-    }
-    #weeklyChartContainer,
-    #chartContainer {
-      background: #1a1a28;
-      border-radius: 28px;
-      padding: 16px;
-      margin: 28px 0;
-    }
-    canvas#weeklyChart,
-    canvas#beerChart {
-      max-height: 320px;
-      width: 100% !important;
-    }
-    h2 {
-      margin: 1rem 0 0.75rem;
-      color: #ffd966;
-    }
-    h3 {
-      margin: 0.5rem 0 0.25rem;
-      color: #f9b43a;
-      font-size: 1rem;
-    }
-    .badge-container {
-      display: flex;
-      justify-content: center;
-      gap: 15px;
-      flex-wrap: wrap;
-    }
-    .weeks-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-      gap: 12px;
-      margin-top: 20px;
-    }
-    .ranking-container {
-      background: #1a1a28;
-      border-radius: 28px;
-      padding: 20px;
-      margin: 28px 0;
-    }
-    .ranking-week {
-      background: #252536;
-      border-radius: 24px;
-      padding: 16px;
-      margin-bottom: 24px;
-      border-left: 4px solid #f9b43a;
-      transition: all 0.2s;
-    }
-    .ranking-week.current-week {
-      background: linear-gradient(135deg, #2a2a4a, #1e1e3a);
-      border-left: 4px solid #ffd700;
-      box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
-    }
-    .ranking-week-title {
-      font-size: 1.2rem;
-      font-weight: bold;
-      color: #ffd966;
-      margin-bottom: 15px;
-      text-align: left;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #3a3a4a;
-    }
-    .ranking-week.current-week .ranking-week-title {
-      color: #ffd700;
-      font-size: 1.3rem;
-    }
-    .ranking-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .ranking-item {
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      background: #1e1e2e;
-      padding: 10px 15px;
-      border-radius: 16px;
-      transition: transform 0.2s;
-    }
-    .ranking-item:hover {
-      transform: translateX(5px);
-      background: #2a2a3a;
-    }
-    .rank-number {
-      font-size: 1.5rem;
-      font-weight: bold;
-      width: 50px;
-      text-align: center;
-    }
-    .rank-1 {
-      color: #ffd700;
-    }
-    .rank-2 {
-      color: #c0c0c0;
-    }
-    .rank-3 {
-      color: #cd7f32;
-    }
-    .rank-name {
-      flex: 1;
-      font-size: 1rem;
-      font-weight: 500;
-      text-align: left;
-    }
-    .rank-count {
-      font-size: 1.3rem;
-      font-weight: bold;
-      color: #f9b43a;
-      background: #2a2a3a;
-      padding: 4px 12px;
-      border-radius: 40px;
-    }
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-      gap: 20px;
-      margin: 20px 0;
-    }
-    .stat-block {
-      background: #1a1a28;
-      border-radius: 24px;
-      padding: 16px;
-      text-align: left;
-      transition: transform 0.2s;
-    }
-    .stat-block:hover {
-      transform: translateY(-3px);
-      background: #22223a;
-    }
-    .stat-block h3 {
-      color: #ffd966;
-      margin-bottom: 12px;
-      border-left: 3px solid #f9b43a;
-      padding-left: 12px;
-    }
-    .stat-description {
-      font-size: 0.75rem;
-      color: #aaa;
-      margin-bottom: 12px;
-      font-style: italic;
-    }
-    .stat-content {
-      font-size: 0.9rem;
-    }
-    .stat-line {
-      padding: 6px 0;
-      border-bottom: 1px solid #2a2a3a;
-      display: flex;
-      justify-content: space-between;
-    }
-    .stat-line strong {
-      color: #f9b43a;
-    }
-    .speed-ranking-container {
-      background: #1a1a28;
-      border-radius: 28px;
-      padding: 20px;
-      margin: 28px 0;
-    }
-    .speed-ranking-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 20px;
-    }
-    .speed-ranking-item {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      background: #1e1e2e;
-      padding: 14px 20px;
-      border-radius: 20px;
-      transition: all 0.2s;
-      border-bottom: 1px solid #3a3a4a;
-    }
-    .speed-ranking-item:hover {
-      transform: translateX(5px);
-      background: #2a2a3a;
-    }
-    .speed-rank-number {
-      font-size: 1.4rem;
-      font-weight: bold;
-      width: 60px;
-      text-align: center;
-      color: #ffd966;
-    }
-    .speed-rank-1 {
-      font-size: 1.8rem;
-      color: #ffd700;
-    }
-    .speed-rank-2 {
-      font-size: 1.6rem;
-      color: #c0c0c0;
-    }
-    .speed-rank-3 {
-      font-size: 1.5rem;
-      color: #cd7f32;
-    }
-    .speed-rank-name {
-      flex: 1;
-      font-size: 1.1rem;
-      font-weight: 500;
-      text-align: left;
-    }
-    .speed-rank-time {
-      font-size: 1.3rem;
-      font-weight: bold;
-      color: #5a9e4e;
-      background: #2a2a3a;
-      padding: 5px 15px;
-      border-radius: 40px;
-    }
-    .avg-time {
-      font-size: 0.9rem;
-      color: #aaa;
-      margin-left: 10px;
-      font-weight: normal;
-    }
-    .record-badge {
-      font-size: 0.8rem;
-      background: #f9b43a;
-      color: #111;
-      padding: 2px 8px;
-      border-radius: 20px;
-      margin-left: 10px;
-      font-weight: bold;
-    }
-    .open-beer-badge {
-      background: #c44536;
-      color: white;
-      padding: 2px 8px;
-      border-radius: 20px;
-      margin-left: 10px;
-      font-size: 0.7rem;
-      font-weight: bold;
-    }
-    .monthly-top-container {
-      background: #1a1a28;
-      border-radius: 28px;
-      padding: 20px;
-      margin: 0 0 28px 0;
-    }
-    .monthly-top-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 20px;
-    }
-    .history-container {
-      background: #1a1a28;
-      border-radius: 28px;
-      padding: 20px;
-      margin: 28px 0;
-    }
-    .history-list {
-      max-height: 400px;
-      overflow-y: auto;
-      background: #0f0f17;
-      border-radius: 20px;
-      padding: 10px;
-    }
-    .history-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 16px;
-      margin: 8px 0;
-      background: #1e1e2e;
-      border-radius: 16px;
-      transition: all 0.2s;
-      border-left: 3px solid #f9b43a;
-    }
-    .history-item:hover {
-      background: #2a2a3a;
-      transform: translateX(5px);
-    }
-    .history-item.payment {
-      border-left-color: #2e7d64;
-      opacity: 0.8;
-    }
-    .history-name {
-      font-weight: bold;
-      font-size: 1rem;
-      color: #ffd966;
-    }
-    .history-name.payment {
-      color: #aaa;
-    }
-    .history-time {
-      font-size: 0.8rem;
-      color: #888;
-    }
-    .history-beer-icon {
-      font-size: 1.1rem;
-    }
-    .download-btn {
-      background: #2e7d64;
-      color: white;
-      padding: 12px 30px;
-      border: none;
-      border-radius: 40px;
-      font-size: 1rem;
-      font-weight: bold;
-      cursor: pointer;
-      margin: 20px 0;
-      transition: transform 0.2s, opacity 0.2s;
-    }
-    .download-btn:hover {
-      transform: scale(1.02);
-      opacity: 0.9;
-    }
-    .loading-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.9);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
-    .loading-spinner {
-      width: 50px;
-      height: 50px;
-      border: 4px solid #2e7d64;
-      border-top-color: #f9b43a;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-    .error-message {
-      background: #c44536;
-      color: white;
-      padding: 20px;
-      border-radius: 16px;
-      margin: 40px;
-      text-align: center;
-    }
-    footer {
-      font-size: 11px;
-      margin-top: 30px;
-      opacity: 0.5;
-      color: #888;
-    }
-    .retry-btn {
-      background: #f9b43a;
-      color: #111;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 30px;
-      margin-top: 15px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    .top3-ranking-item {
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      background: #1e1e2e;
-      padding: 10px 15px;
-      border-radius: 16px;
-      margin-bottom: 8px;
-    }
-    .top3-rank {
-      font-size: 1.8rem;
-      font-weight: bold;
-      width: 55px;
-      text-align: center;
-    }
-
-    /* Styles für die persönlichen Diagramme */
-    .personal-charts-container {
-      background: #1a1a28;
-      border-radius: 28px;
-      padding: 20px;
-      margin: 28px 0;
-    }
-    .personal-charts-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-      gap: 20px;
-      margin-top: 20px;
-    }
-    .personal-chart-card {
-      background: #252536;
-      border-radius: 20px;
-      padding: 16px;
-      border: 1px solid #3a3a4a;
-      transition: transform 0.2s;
-    }
-    .personal-chart-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 25px rgba(249, 180, 58, 0.15);
-    }
-    .personal-chart-card h3 {
-      color: #ffd966;
-      margin-bottom: 12px;
-      font-size: 1.1rem;
-    }
-    .personal-chart-card canvas {
-      max-height: 200px;
-      width: 100% !important;
-    }
-    .personal-total {
-      font-size: 0.9rem;
-      color: #f9b43a;
-      margin-top: 8px;
-      font-weight: bold;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Persönliche Bierstatistik (12 Monate)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
+    </script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            background: #111;
+            color: #f0f0f0;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px 12px 40px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2rem;
+            background: linear-gradient(135deg, #f9b43a, #ffd966);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 2rem;
+        }
+        .controls {
+            background: #1a1a28;
+            border-radius: 28px;
+            padding: 20px;
+            margin: 0 auto 28px;
+            max-width: 600px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            align-items: center;
+            border: 1px solid #2c2c3a;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        label {
+            font-weight: bold;
+            color: #ffd966;
+            font-size: 1rem;
+        }
+        select {
+            background: #252536;
+            color: #f0f0f0;
+            border: 1px solid #3a3a4a;
+            border-radius: 20px;
+            padding: 10px 15px;
+            font-size: 1rem;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        select:hover,
+        select:focus {
+            border-color: #f9b43a;
+        }
+        #chartContainer {
+            background: #1a1a28;
+            border-radius: 28px;
+            padding: 20px;
+            margin: 0 auto 28px;
+            max-width: 800px;
+            border: 1px solid #2c2c3a;
+        }
+        canvas#personalChart {
+            max-height: 400px;
+            width: 100% !important;
+        }
+        footer {
+            font-size: 11px;
+            margin-top: 30px;
+            opacity: 0.5;
+            color: #888;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+    </style>
 </head>
 <body>
-  <h1>🍺 OGA BIERSTATISTIK - ERWEITERTE ANALYSE 🍺</h1>
-  <div class="glass-card">
-    <div class="badge-container">
-      <div id="totalBeerDisplay" class="total-beer-badge">🍺 Aktueller Monat: -- Biere</div>
-      <div id="totalAllTimeDisplay" class="total-beer-alltime">📊 Alle Zeiten: -- Biere</div>
+    <h1>🍺 Persönliche Bierstatistik (12 Monate)</h1>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="nameSelect">👤 Biertrinker:</label>
+            <select id="nameSelect"></select>
+        </div>
+        <div class="control-group">
+            <label for="metricSelect">📊 Metrik:</label>
+            <select id="metricSelect">
+                <option value="count">Anzahl Biere pro Monat</option>
+                <option value="avgDuration">Ø Trinkdauer pro Tag (Min.)</option>
+                <option value="fastest">Schnellstes Bier (Min.)</option>
+            </select>
+        </div>
     </div>
-  </div>
 
-  <!-- NEU: Persönliche Diagramme für jeden Namen -->
-  <div class="personal-charts-container">
-    <h2>📊 Bierkonsum pro Person (letzte 6 Monate)</h2>
-    <div id="personalChartsGrid" class="personal-charts-grid">
-      <div style="text-align:center;padding:20px;color:#888;grid-column:1/-1;">📊 Diagramme werden geladen...</div>
+    <div id="chartContainer">
+        <div id="chartLoading" class="loading">📡 Warte auf Daten...</div>
+        <canvas id="personalChart" style="display: none;"></canvas>
     </div>
-  </div>
 
-  <div id="weeklyChartContainer">
-    <h2>📊 Bierkonsum pro Woche (letzte 8 Wochen)</h2>
-    <canvas id="weeklyChart" width="800" height="350"></canvas>
-    <div id="weekStats" class="weeks-grid"></div>
-  </div>
-  <div id="chartContainer">
-    <h2>📈 Bierkonsum pro Monat (aktuellster Monat links)</h2>
-    <canvas id="beerChart" width="800" height="350"></canvas>
-    <div id="monthStats" class="stats-container">
-      <div class="stat-card">
-        <div class="stat-month" id="currentMonthLabel">-</div>
-        <div class="stat-count" id="currentMonthCount">--</div>
-        <div class="stat-label">🍺 Biere</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-month" id="lastMonthLabel">-</div>
-        <div class="stat-count" id="lastMonthCount">--</div>
-        <div class="stat-label">🍺 Biere</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-month" id="twoMonthsAgoLabel">-</div>
-        <div class="stat-count" id="twoMonthsAgoCount">--</div>
-        <div class="stat-label">🍺 Biere</div>
-      </div>
-    </div>
-  </div>
-  <div class="monthly-top-container">
-    <h2>📅 Top 3 Biertrinker des aktuellen Monats</h2>
-    <div id="monthlyTopList" class="monthly-top-list">
-      <div style="text-align:center;padding:20px;color:#888;">📊 Berechne Top-Trinker...</div>
-    </div>
-  </div>
-  <div class="ranking-container">
-    <h2>🏆 Top 3 Biertrinker pro Woche</h2>
-    <div id="weeklyRanking"></div>
-  </div>
-  <div class="speed-ranking-container">
-    <h2>🐌 Wer braucht am längsten zum Bezahlen? (Schulden-Ranking) 🐌</h2>
-    <div id="slowestPayersList" class="speed-ranking-list">
-      <div style="text-align:center;padding:20px;color:#888;">📊 Berechne Zahlungsverzögerungen...</div>
-    </div>
-  </div>
-  <div class="stats-grid">
-    <div class="stat-block">
-      <h3>📅 1. TOP 3 Trinktage</h3>
-      <div class="stat-description">An welchen Wochentagen wird am meisten getrunken? (Platz 1-3)</div>
-      <div id="favoriteDay" class="stat-content">📊 Wird berechnet...</div>
-    </div>
-    <div class="stat-block">
-      <h3>👑 2. Comeback-King</h3>
-      <div class="stat-description">Wer hatte die längste Pause und trinkt jetzt wieder aktiv?</div>
-      <div id="comebackKing" class="stat-content">📊 Wird berechnet...</div>
-    </div>
-    <div class="stat-block">
-      <h3>🤝 3. Buddy-Ranking (Synchron-Trinker)</h3>
-      <div class="stat-description">Wer trinkt oft zeitgleich mit wem? (innerhalb 30 Minuten)</div>
-      <div id="buddyRanking" class="stat-content">📊 Wird berechnet...</div>
-    </div>
-  </div>
-  <div class="speed-ranking-container">
-    <h2>⚡ Top 10 Schnellste Trinker (Rekordzeit zwischen 2 Bieren) ⚡</h2>
-    <div id="speedRankingList" class="speed-ranking-list">
-      <div style="text-align:center;padding:20px;color:#888;">📊 Berechne Rekorde...</div>
-    </div>
-  </div>
-  <div class="speed-ranking-container">
-    <h2>⏱️ Durchschnittliche Trinkdauer pro Person (gleicher Tag) ⏱️</h2>
-    <div id="avgTimeList" class="speed-ranking-list">
-      <div style="text-align:center;padding:20px;color:#888;">📊 Berechne Durchschnittswerte...</div>
-    </div>
-  </div>
-  <div class="history-container">
-    <h2>📜 Letzte Aktionen (letzte 2 Monate)</h2>
-    <div id="historyList" class="history-list">
-      <div style="text-align:center;padding:20px;color:#888;">📭 Keine Einträge vorhanden</div>
-    </div>
-  </div>
-  <div class="glass-card">
-    <button id="downloadCsvBtn" class="download-btn">📥 Datenbank als CSV herunterladen</button>
-  </div>
-  <footer><span id="connectionStatus"></span></footer>
+    <footer><span id="connectionStatus">🔌 Verbinde...</span></footer>
 
-  <script>
-    const FIREBASE_CONFIG = {
-      apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
-      authDomain: "juii-strichliste.firebaseapp.com",
-      projectId: "juii-strichliste",
-      storageBucket: "juii-strichliste.firebasestorage.app",
-      messagingSenderId: "8081599971",
-      appId: "1:8081599971:web:6cc277281b040d995304d6"
-    };
+    <script>
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyAzj8jF78WhPkSJlqs6Yysfoeog1WQBmRw",
+            authDomain: "juii-strichliste.firebaseapp.com",
+            projectId: "juii-strichliste",
+            storageBucket: "juii-strichliste.firebasestorage.app",
+            messagingSenderId: "8081599971",
+            appId: "1:8081599971:web:6cc277281b040d995304d6"
+        };
 
-    const NAMES = ["Andi", "Basti G.", "Benny", "Bernd G.", "Bernd K.", "Chris", "Clemens", "Dietmar", "Donde", "Jakob",
-      "Lukas", "Max", "Micha", "Hainzl", "Philipp", "Basti B.", "Simon", "Schwob", "Tim", "Timo", "Tom"
-    ];
+        const NAMES = ["Andi", "Basti G.", "Benny", "Bernd G.", "Bernd K.", "Chris", "Clemens", "Dietmar", "Donde",
+            "Jakob", "Lukas", "Max", "Micha", "Hainzl", "Philipp", "Basti B.", "Simon", "Schwob", "Tim", "Timo", "Tom"
+        ];
 
-    let mainDocRef = null;
-    let unsubscribe = null;
-    let beerChart = null;
-    let weeklyChart = null;
-    let personalCharts = {}; // Speichert alle persönlichen Chart-Instanzen
-    let currentHistory = [];
-    let currentStrichliste = {};
+        let mainDocRef = null;
+        let unsubscribe = null;
+        let personalChart = null;
+        let currentHistory = [];
 
-    function escapeHtml(str) {
-      if (!str) return '';
-      return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
-    }
-
-    function formatTime(minutes) {
-      if (minutes < 1) return Math.round(minutes * 60) + " Sek.";
-      if (minutes < 60) return Math.round(minutes) + " min";
-      const hours = Math.floor(minutes / 60);
-      const mins = Math.round(minutes % 60);
-      return hours + " h " + mins + " min";
-    }
-
-    function formatDaysHours(days) {
-      if (days < 1) return formatTime(days * 24 * 60);
-      if (days < 7) return Math.round(days) + " Tage";
-      const weeks = Math.floor(days / 7);
-      const restDays = Math.round(days % 7);
-      return weeks + " Woche(n) " + (restDays > 0 ? restDays + " Tage" : "");
-    }
-
-    function isPaymentEntry(entry) {
-      return entry?.name && (entry.name.includes('bezahlt') || entry.name.includes('Bezahlung') || entry.name.includes(
-        'entfernt'));
-    }
-
-    function filterBeerEntries(historyArray) {
-      return historyArray?.filter(e => e?.name && !e.name.includes('bezahlt') && !e.name.includes('entfernt') && !e.name
-        .includes('Bezahlung')) || [];
-    }
-
-    function filterLastTwoMonths(historyArray) {
-      const now = new Date(),
-        twoMonthsAgo = new Date();
-      twoMonthsAgo.setMonth(now.getMonth() - 2);
-      return historyArray?.filter(e => e?.time && new Date(e.time) >= twoMonthsAgo) || [];
-    }
-
-    function getWeekNumber(date) {
-      const d = new Date(date);
-      d.setHours(0, 0, 0, 0);
-      const thursday = new Date(d);
-      thursday.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
-      const year = thursday.getFullYear(),
-        firstThursday = new Date(year, 0, 4);
-      firstThursday.setDate(firstThursday.getDate() - ((firstThursday.getDay() + 6) % 7));
-      return {
-        year,
-        week: Math.floor((thursday - firstThursday) / (7 * 24 * 60 * 60 * 1000)) + 1
-      };
-    }
-
-    function getLast8Weeks() {
-      const weeks = [],
-        seen = new Set(),
-        today = new Date();
-      for (let i = 0; i < 20; i++) {
-        const date = new Date(today);
-        date.setDate(today.getDate() - (i * 7));
-        const {
-          year,
-          week
-        } = getWeekNumber(date),
-          key = `${year}-${week}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          weeks.push({
-            year,
-            week,
-            label: `KW ${week}`
-          });
-          if (weeks.length === 8) break;
+        function isPaymentEntry(entry) {
+            return entry?.name && (entry.name.includes('bezahlt') || entry.name.includes('Bezahlung') || entry.name
+                .includes('entfernt'));
         }
-      }
-      return weeks;
-    }
 
-    function getWeeklyData(historyArray, weeks) {
-      const consumption = new Array(weeks.length).fill(0),
-        perPerson = weeks.map(() => ({}));
-      filterBeerEntries(historyArray).forEach(entry => {
-        const date = new Date(entry.time);
-        if (isNaN(date)) return;
-        const {
-          year,
-          week: entryWeek
-        } = getWeekNumber(date);
-        for (let i = 0; i < weeks.length; i++) {
-          if (weeks[i].year === year && weeks[i].week === entryWeek) {
-            consumption[i]++;
-            perPerson[i][entry.name] = (perPerson[i][entry.name] || 0) + 1;
-            break;
-          }
+        function filterBeerEntries(historyArray) {
+            return historyArray?.filter(e => e?.name && !e.name.includes('bezahlt') && !e.name.includes('entfernt') && !e
+                .name.includes('Bezahlung')) || [];
         }
-      });
-      return {
-        consumption,
-        perPerson
-      };
-    }
 
-    function getFastestDrinkTimes(historyArray) {
-      const beerEntries = filterBeerEntries(historyArray);
-      if (beerEntries.length < 2) return [];
-      const sortedEntries = [...beerEntries].sort((a, b) => new Date(a.time) - new Date(b.time)),
-        personTimes = {};
-      for (let i = 0; i < sortedEntries.length; i++) {
-        const current = sortedEntries[i],
-          currentTime = new Date(current.time);
-        for (let j = i - 1; j >= 0; j--) {
-          if (sortedEntries[j].name === current.name) {
-            const diff = (currentTime - new Date(sortedEntries[j].time)) / (1000 * 60);
-            if (diff > 2) {
-              personTimes[current.name] = personTimes[current.name] || [];
-              personTimes[current.name].push(diff);
-            }
-            break;
-          }
+        function getMonthlyCounts(historyArray, name) {
+            const months = getLast12Months();
+            const counts = new Array(12).fill(0);
+            filterBeerEntries(historyArray).forEach(entry => {
+                if (entry.name !== name) return;
+                const d = new Date(entry.time);
+                if (isNaN(d)) return;
+                const key = `${d.getFullYear()}-${d.getMonth()+1}`;
+                const idx = months.findIndex(m => m.key === key);
+                if (idx !== -1) counts[idx]++;
+            });
+            return counts;
         }
-      }
-      return Object.entries(personTimes).map(([n, t]) => ({
-        name: n,
-        time: Math.min(...t)
-      })).sort((a, b) => a.time - b.time).slice(0, 10);
-    }
 
-    function getAverageDrinkTimes(historyArray) {
-      const beerEntries = filterBeerEntries(historyArray);
-      if (beerEntries.length < 2) return [];
-      const personDrinks = {};
-      beerEntries.forEach(entry => {
-        const date = new Date(entry.time);
-        if (isNaN(date)) return;
-        const dateKey = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`;
-        personDrinks[entry.name] = personDrinks[entry.name] || [];
-        personDrinks[entry.name].push({
-          dateKey,
-          timeMs: date.getTime()
-        });
-      });
-      const result = [];
-      for (const [name, drinks] of Object.entries(personDrinks)) {
-        drinks.sort((a, b) => a.timeMs - b.timeMs);
-        const intervals = [];
-        for (let i = 1; i < drinks.length; i++)
-          if (drinks[i].dateKey === drinks[i - 1].dateKey) {
-            const diff = (drinks[i].timeMs - drinks[i - 1].timeMs) / (1000 * 60);
-            if (diff > 0) intervals.push(diff);
-          }
-        if (intervals.length)
-          result.push({
-            name,
-            avgTime: intervals.reduce((a, b) => a + b, 0) / intervals.length,
-            count: intervals.length
-          });
-      }
-      return result.sort((a, b) => a.avgTime - b.avgTime);
-    }
+        function getAverageDrinkDurationPerDay(historyArray, name) {
+            const months = getLast12Months();
+            const result = new Array(12).fill(null);
+            const beerEntries = filterBeerEntries(historyArray).filter(e => e.name === name);
 
-    function getMonthlyTopDrinkers(historyArray) {
-      const beers = filterBeerEntries(historyArray);
-      if (!beers.length) return [];
-      const now = new Date(),
-        currentMonth = now.getMonth(),
-        currentYear = now.getFullYear();
-      const monthlyCount = {};
-      beers.forEach(e => {
-        const d = new Date(e.time);
-        if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
-          monthlyCount[e.name] = (monthlyCount[e.name] || 0) + 1;
-        }
-      });
-      return Object.entries(monthlyCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    }
-
-    function getSlowestPayers(historyArray, currentStrichliste) {
-      if (!historyArray) return [];
-      const payments = [];
-      const now = new Date();
-
-      for (let i = 0; i < historyArray.length; i++) {
-        const entry = historyArray[i];
-        if (isPaymentEntry(entry)) {
-          let person = null;
-          const paymentMatch = entry.name.match(/([A-Za-z\s\.]+?)\s*\(bezahlt:/);
-          if (paymentMatch) person = paymentMatch[1].trim();
-          if (!person) {
-            const simpleMatch = entry.name.match(/^([A-Za-z\s\.]+?)\s*\(/);
-            if (simpleMatch) person = simpleMatch[1].trim();
-          }
-          if (person) {
-            const paymentTime = new Date(entry.time);
-            let lastBeerTime = null;
-            for (let j = i - 1; j >= 0; j--) {
-              if (!isPaymentEntry(historyArray[j]) && historyArray[j].name === person) {
-                lastBeerTime = new Date(historyArray[j].time);
-                break;
-              }
-            }
-            if (lastBeerTime && paymentTime > lastBeerTime) {
-              const diffDays = (paymentTime - lastBeerTime) / (1000 * 60 * 60 * 24);
-              const sameDay = lastBeerTime.toDateString() === paymentTime.toDateString();
-              if (diffDays > 0 && !sameDay) {
-                payments.push({
-                  name: person,
-                  days: diffDays,
-                  lastBeer: lastBeerTime,
-                  isOpen: false,
-                  count: 1
+            // Für jeden Monat: sammle Einträge nach Tag
+            for (let i = 0; i < 12; i++) {
+                const month = months[i];
+                const monthBeers = beerEntries.filter(e => {
+                    const d = new Date(e.time);
+                    if (isNaN(d)) return false;
+                    return `${d.getFullYear()}-${d.getMonth()+1}` === month.key;
                 });
-              }
-            }
-          }
-        }
-      }
 
-      for (const [person, beerCount] of Object.entries(currentStrichliste)) {
-        if (beerCount > 0) {
-          let lastBeerTime = null;
-          for (let i = historyArray.length - 1; i >= 0; i--) {
-            if (!isPaymentEntry(historyArray[i]) && historyArray[i].name === person) {
-              lastBeerTime = new Date(historyArray[i].time);
-              break;
-            }
-          }
-          if (lastBeerTime) {
-            const diffDays = (now - lastBeerTime) / (1000 * 60 * 60 * 24);
-            if (diffDays > 0) {
-              payments.push({
-                name: person,
-                days: diffDays,
-                lastBeer: lastBeerTime,
-                isOpen: true,
-                count: beerCount
-              });
-            }
-          }
-        }
-      }
+                // Nach Zeit sortieren
+                const sorted = [...monthBeers].sort((a, b) => new Date(a.time) - new Date(b.time));
 
-      const personMap = {};
-      for (const p of payments) {
-        if (!personMap[p.name] || p.days > personMap[p.name].days) {
-          personMap[p.name] = p;
-        }
-      }
+                // Gruppieren nach Tag
+                const dayMap = {};
+                sorted.forEach(entry => {
+                    const d = new Date(entry.time);
+                    const dayKey = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+                    if (!dayMap[dayKey]) dayMap[dayKey] = [];
+                    dayMap[dayKey].push(new Date(entry.time));
+                });
 
-      return Object.values(personMap).sort((a, b) => b.days - a.days).slice(0, 10);
-    }
-
-    function getAllTimeBeerCount(historyArray) {
-      return filterBeerEntries(historyArray).length;
-    }
-
-    function getCurrentMonthCount(historyArray) {
-      const now = new Date();
-      return filterBeerEntries(historyArray).filter(e => {
-        const d = new Date(e.time);
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-      }).length;
-    }
-
-    function updateTotalDisplay(historyArray) {
-      document.getElementById('totalBeerDisplay').innerHTML =
-        `🍺 Aktueller Monat: ${getCurrentMonthCount(historyArray)} Biere`;
-      document.getElementById('totalAllTimeDisplay').innerHTML =
-      `📊 Alle Zeiten: ${getAllTimeBeerCount(historyArray)} Biere`;
-    }
-
-    function downloadCSV(historyArray, strichliste) {
-      if (!historyArray || historyArray.length === 0) {
-        alert("Keine Daten zum Herunterladen vorhanden!");
-        return;
-      }
-      let csvRows = [];
-      csvRows.push(["=== AKTUELLER STRICHLISTEN-STAND ==="]);
-      csvRows.push(["Name", "Anzahl Biere", "Kosten (€)"]);
-      const sortedNames = Object.keys(strichliste).sort();
-      for (const name of sortedNames) {
-        const count = strichliste[name] || 0;
-        const kosten = (count * 2).toFixed(2);
-        csvRows.push([name, count, kosten]);
-      }
-      csvRows.push([]);
-      csvRows.push(["=== VERLAUF (ALLE AKTIONEN) ==="]);
-      csvRows.push(["Aktion", "Name/Details", "Zeitpunkt (ISO)", "Zeitpunkt (lokal)"]);
-      for (const entry of historyArray) {
-        const date = new Date(entry.time);
-        const localTime = date.toLocaleString('de-DE', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        });
-        const aktion = (entry.name.includes('bezahlt') || entry.name.includes('entfernt')) ? "BEZAHLUNG/ENTFERNUNG" :
-          "BIER";
-        csvRows.push([aktion, entry.name, entry.time, localTime]);
-      }
-      const csvContent = csvRows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join(
-      '\n');
-      const blob = new Blob(["\uFEFF" + csvContent], {
-        type: "text/csv;charset=utf-8;"
-      });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", `bierdaten_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.csv`);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }
-
-    function renderSlowestPayers(historyArray, strichliste) {
-      const container = document.getElementById('slowestPayersList');
-      const slowest = getSlowestPayers(historyArray, strichliste);
-      if (!slowest.length) {
-        container.innerHTML =
-          '<div style="text-align:center;padding:20px;color:#888;">🐌 Keine Zahlungsverzögerungen oder offenen Schulden gefunden 🐌</div>';
-        return;
-      }
-      container.innerHTML = slowest.map((p, i) => {
-        let rankIcon = i === 0 ? '🐌👑' : i === 1 ? '🥈🐌' : i === 2 ? '🥉🐌' : '🐌';
-        let rankClass = i === 0 ? 'speed-rank-1' : i === 1 ? 'speed-rank-2' : i === 2 ? 'speed-rank-3' : '';
-        const statusEmoji = p.isOpen ? '🔄 OFFEN' : '✅ BEZAHLT';
-        return `<div class="speed-ranking-item"><div class="speed-rank-number ${rankClass}" style="font-size:1.5rem;">${rankIcon}</div><div class="speed-rank-name">${escapeHtml(p.name)}</div><div class="speed-rank-time">⏰ ${formatDaysHours(p.days)}</div><div class="speed-rank-time" style="background:#3a3a4a; font-size:0.9rem;">${statusEmoji}</div><div class="avg-time" style="font-size:0.7rem;">(letztes Bier: ${p.lastBeer.toLocaleDateString('de-DE')})</div></div>`;
-      }).join('');
-    }
-
-    function renderSpeedRanking(historyArray) {
-      const container = document.getElementById('speedRankingList');
-      const fastest = getFastestDrinkTimes(historyArray);
-      if (!fastest.length) {
-        container.innerHTML =
-          '<div style="text-align:center;padding:20px;color:#888;">⚡ Keine Zeiten über 2 Minuten gefunden</div>';
-        return;
-      }
-      container.innerHTML = fastest.map((f, i) =>
-        `<div class="speed-ranking-item"><div class="speed-rank-number${i===0?' speed-rank-1':i===1?' speed-rank-2':i===2?' speed-rank-3':''}">${i+1}.</div><div class="speed-rank-name">${escapeHtml(f.name)}</div><div class="speed-rank-time">${formatTime(f.time)}</div></div>`
-        ).join('');
-    }
-
-    function renderAverageTimes(historyArray) {
-      const container = document.getElementById('avgTimeList');
-      const avg = getAverageDrinkTimes(historyArray);
-      if (!avg.length) {
-        container.innerHTML =
-          '<div style="text-align:center;padding:20px;color:#888;">⏱️ Keine ausreichenden Daten (mind. 2 Biere am gleichen Tag)</div>';
-        return;
-      }
-      container.innerHTML = avg.map((a, i) =>
-        `<div class="speed-ranking-item"><div class="speed-rank-number${i===0?' speed-rank-1':i===1?' speed-rank-2':i===2?' speed-rank-3':''}">${i+1}.</div><div class="speed-rank-name">${escapeHtml(a.name)}</div><div class="speed-rank-time">${formatTime(a.avgTime)} <span class="avg-time">(Ø ${a.count})</span></div></div>`
-        ).join('');
-    }
-
-    function renderMonthlyTopDrinkers(historyArray) {
-      const container = document.getElementById('monthlyTopList');
-      const top = getMonthlyTopDrinkers(historyArray);
-      if (!top.length) {
-        container.innerHTML =
-          '<div style="text-align:center;padding:20px;color:#888;">📊 Keine Daten für aktuellen Monat</div>';
-        return;
-      }
-      const icons = ['🥇', '🥈', '🥉'];
-      container.innerHTML = top.map(([name, count], i) =>
-        `<div class="speed-ranking-item"><div class="speed-rank-number" style="font-size:1.5rem;">${icons[i]}</div><div class="speed-rank-name">${escapeHtml(name)}</div><div class="speed-rank-time">${count} 🍺</div></div>`
-        ).join('');
-    }
-
-    function renderHistory(historyArray) {
-      const container = document.getElementById('historyList');
-      const lastTwo = filterLastTwoMonths(historyArray);
-      if (!lastTwo.length) {
-        container.innerHTML =
-          '<div style="text-align:center;padding:20px;color:#888;">📭 Keine Einträge der letzten 2 Monate</div>';
-        return;
-      }
-      container.innerHTML = [...lastTwo].reverse().map(e => {
-        const d = new Date(e.time);
-        return `<div class="history-item${isPaymentEntry(e)?' payment':''}"><span class="history-beer-icon">${isPaymentEntry(e)?'💰':'🍺'}</span><span class="history-name">${escapeHtml(e.name)}</span><span class="history-time">${d.toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span></div>`;
-      }).join('');
-    }
-
-    // NEU: Funktion zum Rendern der persönlichen Diagramme
-    function renderPersonalCharts(historyArray) {
-      const container = document.getElementById('personalChartsGrid');
-      const beers = filterBeerEntries(historyArray);
-
-      if (!beers.length) {
-        container.innerHTML =
-          '<div style="text-align:center;padding:20px;color:#888;grid-column:1/-1;">📊 Keine Daten vorhanden</div>';
-        return;
-      }
-
-      // Alte Charts zerstören
-      Object.values(personalCharts).forEach(chart => {
-        if (chart) chart.destroy();
-      });
-      personalCharts = {};
-
-      // Letzte 6 Monate berechnen
-      const now = new Date();
-      const months = [];
-      const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        months.push({
-          key: `${d.getFullYear()}-${d.getMonth() + 1}`,
-          label: `${monthNames[d.getMonth()]} ${d.getFullYear()}`
-        });
-      }
-
-      // Daten pro Person und Monat sammeln
-      const personMonthlyData = {};
-      NAMES.forEach(name => {
-        personMonthlyData[name] = new Array(6).fill(0);
-      });
-
-      beers.forEach(entry => {
-        const d = new Date(entry.time);
-        if (isNaN(d)) return;
-        const entryKey = `${d.getFullYear()}-${d.getMonth() + 1}`;
-
-        for (let i = 0; i < months.length; i++) {
-          if (months[i].key === entryKey && personMonthlyData[entry.name]) {
-            personMonthlyData[entry.name][i]++;
-            break;
-          }
-        }
-      });
-
-      // Nach Gesamtanzahl in den letzten 6 Monaten sortieren
-      const sortedNames = [...NAMES].sort((a, b) => {
-        const totalA = personMonthlyData[a].reduce((sum, val) => sum + val, 0);
-        const totalB = personMonthlyData[b].reduce((sum, val) => sum + val, 0);
-        return totalB - totalA;
-      });
-
-      // Grid mit Karten füllen
-      container.innerHTML = sortedNames.map(name => {
-        const safeId = name.replace(/[^a-zA-Z0-9]/g, '_');
-        const total = personMonthlyData[name].reduce((sum, val) => sum + val, 0);
-        return `
-            <div class="personal-chart-card">
-              <h3>🍺 ${escapeHtml(name)}</h3>
-              <canvas id="chart_${safeId}" width="300" height="180"></canvas>
-              <div class="personal-total">Gesamt (6 Monate): ${total} Biere</div>
-            </div>
-          `;
-      }).join('');
-
-      // Charts erstellen (nachdem DOM aktualisiert wurde)
-      setTimeout(() => {
-        sortedNames.forEach(name => {
-          const safeId = name.replace(/[^a-zA-Z0-9]/g, '_');
-          const canvas = document.getElementById(`chart_${safeId}`);
-          if (!canvas) return;
-
-          const ctx = canvas.getContext('2d');
-          const data = personMonthlyData[name];
-
-          // Farbverlauf basierend auf der Position im Ranking
-          const rankIndex = sortedNames.indexOf(name);
-          let barColor;
-          if (rankIndex === 0) barColor = '#ffd700'; // Gold für Platz 1
-          else if (rankIndex === 1) barColor = '#c0c0c0'; // Silber für Platz 2
-          else if (rankIndex === 2) barColor = '#cd7f32'; // Bronze für Platz 3
-          else barColor = '#5a9e4e'; // Grün für alle anderen
-
-          personalCharts[name] = new Chart(ctx, {
-            type: 'bar',
-            data: {
-              labels: months.map(m => m.label),
-              datasets: [{
-                label: 'Biere',
-                data: data,
-                backgroundColor: barColor,
-                borderRadius: 8,
-                borderSkipped: false,
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: true,
-              plugins: {
-                legend: {
-                  display: false
-                },
-                tooltip: {
-                  callbacks: {
-                    label: function(context) {
-                      return `${context.raw} Bier(e)`;
+                const dayAverages = [];
+                for (const day in dayMap) {
+                    const times = dayMap[day];
+                    if (times.length < 2) continue;
+                    let totalDiff = 0;
+                    for (let j = 1; j < times.length; j++) {
+                        const diff = (times[j] - times[j - 1]) / (1000 * 60); // in Minuten
+                        if (diff > 0) totalDiff += diff;
                     }
-                  }
+                    dayAverages.push(totalDiff / (times.length - 1));
                 }
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  ticks: {
-                    color: '#ddd',
-                    stepSize: 1,
-                    callback: function(value) {
-                      return Number.isInteger(value) ? value : '';
-                    }
-                  },
-                  grid: {
-                    color: 'rgba(255,255,255,0.1)'
-                  }
-                },
-                x: {
-                  ticks: {
-                    color: '#ffd966',
-                    maxRotation: 45,
-                    minRotation: 45,
-                    font: {
-                      size: 9
-                    }
-                  },
-                  grid: {
-                    display: false
-                  }
+
+                if (dayAverages.length > 0) {
+                    result[i] = dayAverages.reduce((a, b) => a + b, 0) / dayAverages.length;
                 }
-              }
             }
-          });
-        });
-      }, 100);
-    }
+            return result;
+        }
 
-    function renderWeeklyChart(historyArray) {
-      const weeks = getLast8Weeks(),
-        {
-          consumption,
-          perPerson
-        } = getWeeklyData(historyArray, weeks);
-      if (weeklyChart) weeklyChart.destroy();
-      weeklyChart = new Chart(document.getElementById('weeklyChart'), {
-        type: 'bar',
-        data: {
-          labels: weeks.map(w => w.label),
-          datasets: [{
-            label: '🍺 Biere pro Woche',
-            data: consumption,
-            backgroundColor: weeks.map((_, i) => i === 0 ? '#ffd700' : '#5a9e4e'),
-            borderRadius: 10
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              labels: {
-                color: '#fff'
-              }
+        function getFastestDrink(historyArray, name) {
+            const months = getLast12Months();
+            const result = new Array(12).fill(null);
+            const beerEntries = filterBeerEntries(historyArray).filter(e => e.name === name);
+
+            for (let i = 0; i < 12; i++) {
+                const month = months[i];
+                const monthBeers = beerEntries.filter(e => {
+                    const d = new Date(e.time);
+                    if (isNaN(d)) return false;
+                    return `${d.getFullYear()}-${d.getMonth()+1}` === month.key;
+                });
+
+                const sorted = [...monthBeers].sort((a, b) => new Date(a.time) - new Date(b.time));
+                if (sorted.length < 2) continue;
+
+                let minDiff = Infinity;
+                for (let j = 1; j < sorted.length; j++) {
+                    const diff = (new Date(sorted[j].time) - new Date(sorted[j - 1].time)) / (1000 * 60);
+                    if (diff > 0 && diff < minDiff) minDiff = diff;
+                }
+                if (minDiff !== Infinity) result[i] = minDiff;
             }
-          },
-          scales: {
-            y: {
-              ticks: {
-                color: '#ddd'
-              }
-            },
-            x: {
-              ticks: {
-                color: '#ffd966',
-                rotation: 45
-              }
+            return result;
+        }
+
+        function getLast12Months() {
+            const now = new Date();
+            const months = [];
+            const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+            for (let i = 11; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push({
+                    key: `${d.getFullYear()}-${d.getMonth()+1}`,
+                    label: `${monthNames[d.getMonth()]} ${d.getFullYear()}`
+                });
             }
-          }
+            return months;
         }
-      });
-      document.getElementById('weekStats').innerHTML = weeks.map((w, i) =>
-        `<div class="stat-card${i===0?' current-week':''}"><div class="stat-week"><strong>${w.label}</strong></div><div class="stat-count">${consumption[i]}</div><div class="stat-label">🍺 Biere</div></div>`
-        ).join('');
-      document.getElementById('weeklyRanking').innerHTML = weeks.map((w, i) => {
-        const ranking = Object.entries(perPerson[i]).sort((a, b) => b[1] - a[1]).slice(0, 3);
-        return `<div class="ranking-week${i===0?' current-week':''}"><div class="ranking-week-title">🏆 ${w.label}${i===0?' 🔥 AKTUELLE WOCHE':''}</div><div class="ranking-list">${ranking.length ? ranking.map(([n,c],idx)=>`<div class="ranking-item"><div class="rank-number rank-${idx+1}">${idx===0?'🥇':idx===1?'🥈':'🥉'}</div><div class="rank-name">${escapeHtml(n)}</div><div class="rank-count">${c} 🍺</div></div>`).join('') : '<div style="text-align:center;padding:15px;color:#888;">🍺 Keine Biere</div>'}</div></div>`;
-      }).join('');
-    }
 
-    function renderMonthlyChart(historyArray) {
-      const months = new Map();
-      filterBeerEntries(historyArray).forEach(e => {
-        const d = new Date(e.time);
-        if (!isNaN(d)) {
-          const key = `${d.getFullYear()}-${d.getMonth()+1}`;
-          months.set(key, (months.get(key) || 0) + 1);
-        }
-      });
+        function updateChart() {
+            const name = document.getElementById('nameSelect').value;
+            const metric = document.getElementById('metricSelect').value;
+            if (!name || !currentHistory.length) return;
 
-      const sorted = Array.from(months.keys()).sort((a, b) => b.localeCompare(a));
+            const months = getLast12Months();
+            let data, yLabel;
 
-      const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-
-      if (beerChart) beerChart.destroy();
-      beerChart = new Chart(document.getElementById('beerChart'), {
-        type: 'bar',
-        data: {
-          labels: sorted.map(key => {
-            const [year, month] = key.split('-');
-            return `${monthNames[parseInt(month)-1]} ${year}`;
-          }),
-          datasets: [{
-            label: '🍺 Biere/Monat',
-            data: sorted.map(key => months.get(key)),
-            backgroundColor: '#f9b43a',
-            borderRadius: 12
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              labels: {
-                color: '#fff'
-              }
+            if (metric === 'count') {
+                data = getMonthlyCounts(currentHistory, name);
+                yLabel = 'Anzahl Biere';
+            } else if (metric === 'avgDuration') {
+                data = getAverageDrinkDurationPerDay(currentHistory, name);
+                yLabel = 'Minuten (Ø pro Tag)';
+            } else if (metric === 'fastest') {
+                data = getFastestDrink(currentHistory, name);
+                yLabel = 'Minuten (Minimum)';
             }
-          },
-          scales: {
-            y: {
-              ticks: {
-                color: '#ddd'
-              }
-            },
-            x: {
-              ticks: {
-                color: '#ffd966',
-                rotation: 45,
-                maxRotation: 45,
-                minRotation: 45
-              }
+
+            // Chart aktualisieren
+            const canvas = document.getElementById('personalChart');
+            const loadingDiv = document.getElementById('chartLoading');
+
+            if (personalChart) personalChart.destroy();
+
+            // Prüfen, ob überhaupt Daten vorhanden (mind. ein Wert nicht null)
+            const hasData = data.some(v => v !== null && v !== undefined);
+
+            if (!hasData) {
+                canvas.style.display = 'none';
+                loadingDiv.style.display = 'block';
+                loadingDiv.textContent = '📭 Keine Daten für diesen Zeitraum';
+                return;
             }
-          }
-        }
-      });
 
-      const now = new Date();
-      const targets = [
-        [now.getFullYear(), now.getMonth() + 1, 'currentMonthCount', 'currentMonthLabel'],
-        [now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear(), now.getMonth() === 0 ? 12 : now.getMonth(),
-          'lastMonthCount', 'lastMonthLabel'
-        ],
-        [now.getMonth() <= 1 ? now.getFullYear() - 1 : now.getFullYear(), now.getMonth() === 0 ? 11 : (now.getMonth() ===
-          1 ? 12 : now.getMonth() - 1), 'twoMonthsAgoCount', 'twoMonthsAgoLabel']
-      ];
+            loadingDiv.style.display = 'none';
+            canvas.style.display = 'block';
 
-      targets.forEach(([y, m, id, labelId]) => {
-        document.getElementById(labelId).innerText = new Date(y, m - 1, 1).toLocaleString('de-DE', {
-          month: 'long',
-          year: 'numeric'
-        });
-        let cnt = 0;
-        filterBeerEntries(historyArray).forEach(e => {
-          const d = new Date(e.time);
-          if (d.getFullYear() === y && d.getMonth() + 1 === m) cnt++;
-        });
-        document.getElementById(id).innerText = cnt;
-      });
-    }
-
-    // AKTUALISIERT: Top 3 Trinktage als Ranking
-    function renderExtraStats(historyArray) {
-      const beers = filterBeerEntries(historyArray);
-      if (!beers.length) {
-        document.getElementById('favoriteDay').innerHTML =
-          '<div style="padding:10px;color:#888;">📊 Keine Daten vorhanden</div>';
-        document.getElementById('comebackKing').innerHTML = '📭 Kein Comeback erkannt';
-        document.getElementById('buddyRanking').innerHTML = '📭 Keine Synchron-Trinker';
-        return;
-      }
-
-      // TOP 3 TRINKTAGE
-      const dayCount = [0, 0, 0, 0, 0, 0, 0];
-      const dayNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-      const dayIcons = ['😴', '📅', '📅', '📅', '📅', '🎉', '🍻'];
-
-      beers.forEach(e => {
-        const d = new Date(e.time);
-        if (!isNaN(d)) dayCount[d.getDay()]++;
-      });
-
-      // Erstelle Array mit (Index, Anzahl) und sortiere absteigend
-      const dayRanking = dayCount
-        .map((count, index) => ({
-          index,
-          count,
-          name: dayNames[index],
-          icon: dayIcons[index]
-        }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 3);
-
-      const top3DaysHtml = dayRanking.map((day, pos) => {
-        const medal = pos === 0 ? '🥇' : pos === 1 ? '🥈' : '🥉';
-        const medalColor = pos === 0 ? '#ffd700' : pos === 1 ? '#c0c0c0' : '#cd7f32';
-        const percent = Math.round((day.count / beers.length) * 100);
-        return `
-      <div class="top3-ranking-item">
-        <div class="top3-rank" style="color: ${medalColor};">${medal}</div>
-        <div class="rank-name" style="flex:1;">${day.icon} ${day.name}</div>
-        <div class="rank-count">${day.count} 🍺</div>
-        <div class="avg-time">(${percent}%)</div>
-      </div>
-    `;
-      }).join('');
-
-      document.getElementById('favoriteDay').innerHTML = top3DaysHtml;
-
-      // Comeback-King (bleibt unverändert)
-      const personLastTwo = {};
-      beers.forEach(e => {
-        const d = new Date(e.time);
-        if (!isNaN(d)) {
-          personLastTwo[e.name] = personLastTwo[e.name] || [];
-          personLastTwo[e.name].push(d);
-          personLastTwo[e.name].sort((a, b) => b - a).slice(0, 2);
-        }
-      });
-      let best = null;
-      for (const [n, dates] of Object.entries(personLastTwo))
-        if (dates.length >= 2) {
-          const gap = (dates[0] - dates[1]) / 86400000;
-          if (gap > 7 && (!best || gap > best.gap)) best = {
-            name: n,
-            gap
-          };
-        }
-      document.getElementById('comebackKing').innerHTML = best ?
-        `<div class="stat-line"><strong>👑 ${escapeHtml(best.name)}</strong><span>${best.gap.toFixed(1)} Tage Pause</span></div>` :
-        '<div class="stat-line">📭 Kein Comeback erkannt</div>';
-
-      // Buddy-Ranking (bleibt unverändert)
-      const sorted = [...beers].sort((a, b) => new Date(a.time) - new Date(b.time)),
-        pairs = {};
-      for (let i = 0; i < sorted.length; i++) {
-        const ti = new Date(sorted[i].time);
-        for (let j = i + 1; j < sorted.length; j++) {
-          if ((new Date(sorted[j].time) - ti) / 60000 <= 30 && sorted[i].name !== sorted[j].name) {
-            const key = [sorted[i].name, sorted[j].name].sort().join(' & ');
-            pairs[key] = (pairs[key] || 0) + 1;
-          } else break;
-        }
-      }
-      document.getElementById('buddyRanking').innerHTML = Object.entries(pairs).sort((a, b) => b[1] - a[1]).slice(0, 5).map(
-        p =>
-        `<div class="stat-line"><strong>🤝 ${escapeHtml(p[0])}</strong><span>${p[1]}x gemeinsam</span></div>`).join('') ||
-        '<div class="stat-line">📭 Keine Synchron-Trinker</div>';
-    }
-
-    function refreshUI(historyArray, strichliste) {
-      if (!historyArray) historyArray = [];
-      if (!strichliste) strichliste = {};
-      currentHistory = historyArray;
-      currentStrichliste = strichliste;
-      updateTotalDisplay(historyArray);
-      renderPersonalCharts(historyArray); // NEU: Persönliche Diagramme rendern
-      renderWeeklyChart(historyArray);
-      renderMonthlyChart(historyArray);
-      renderMonthlyTopDrinkers(historyArray);
-      renderSlowestPayers(historyArray, strichliste);
-      renderSpeedRanking(historyArray);
-      renderAverageTimes(historyArray);
-      renderHistory(historyArray);
-      renderExtraStats(historyArray);
-    }
-
-    function showError(message) {
-      const container = document.getElementById('connectionStatus');
-      if (container) {
-        container.innerHTML =
-          `❌ ${message} <button class="retry-btn" onclick="location.reload()">🔄 Neu laden</button>`;
-        container.style.background = '#c44536';
-        container.style.padding = '10px';
-        container.style.borderRadius = '20px';
-        container.style.display = 'block';
-      }
-    }
-
-    function updateConnectionStatus(msg) {
-      const div = document.getElementById('connectionStatus');
-      if (div) div.innerHTML = msg;
-    }
-
-    async function initFirebase() {
-      updateConnectionStatus('📡 Verbinde mit Firebase...');
-      try {
-        const {
-          initializeApp
-        } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js");
-        const {
-          getFirestore,
-          doc,
-          getDoc,
-          onSnapshot
-        } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-        const app = initializeApp(FIREBASE_CONFIG),
-          db = getFirestore(app);
-        mainDocRef = doc(db, "strichliste", "juii_main");
-        const snap = await getDoc(mainDocRef);
-
-        if (!snap.exists()) {
-          throw new Error("Keine Daten in der Datenbank gefunden");
+            const ctx = canvas.getContext('2d');
+            personalChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: months.map(m => m.label),
+                    datasets: [{
+                        label: yLabel,
+                        data: data.map(v => v === null ? 0 : v), // null als 0 anzeigen, aber mit spezieller Farbe?
+                        backgroundColor: '#f9b43a',
+                        borderRadius: 8,
+                        borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#fff'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const raw = context.raw;
+                                    if (raw === 0 && data[context.dataIndex] === null) return 'Keine Daten';
+                                    if (metric === 'count') return `${raw} Bier(e)`;
+                                    return `${raw.toFixed(1)} Min.`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#ddd',
+                                callback: function(value) {
+                                    if (metric === 'count') return Number.isInteger(value) ? value : '';
+                                    return value;
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255,255,255,0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#ffd966',
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: {
+                                    size: 9
+                                }
+                            },
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
         }
 
-        const data = snap.data();
-        const strichliste = {};
-        for (const name of NAMES) {
-          strichliste[name] = data[name] || 0;
+        function populateNameDropdown() {
+            const select = document.getElementById('nameSelect');
+            select.innerHTML = NAMES.map(name => `<option value="${name}">${name}</option>`).join('');
+            select.value = NAMES[0]; // Erstes Element vorauswählen
+            // Event Listener für Änderungen
+            select.addEventListener('change', updateChart);
+            document.getElementById('metricSelect').addEventListener('change', updateChart);
         }
-        refreshUI(data.history || [], strichliste);
-        updateConnectionStatus('✅ Firebase verbunden - Live-Daten werden angezeigt');
 
-        unsubscribe = onSnapshot(mainDocRef, s => {
-          if (s.exists()) {
-            const newData = s.data();
-            const newStrichliste = {};
-            for (const name of NAMES) {
-              newStrichliste[name] = newData[name] || 0;
+        function updateConnectionStatus(msg) {
+            document.getElementById('connectionStatus').textContent = msg;
+        }
+
+        async function initFirebase() {
+            updateConnectionStatus('📡 Verbinde mit Firebase...');
+            try {
+                const { initializeApp } = await import(
+                    "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js");
+                const { getFirestore, doc, getDoc, onSnapshot } = await import(
+                    "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+                const app = initializeApp(FIREBASE_CONFIG);
+                const db = getFirestore(app);
+                mainDocRef = doc(db, "strichliste", "juii_main");
+                const snap = await getDoc(mainDocRef);
+
+                if (!snap.exists()) {
+                    throw new Error("Keine Daten in der Datenbank gefunden");
+                }
+
+                const data = snap.data();
+                currentHistory = data.history || [];
+                updateChart();
+                updateConnectionStatus('✅ Live-Daten aktiv');
+
+                unsubscribe = onSnapshot(mainDocRef, (s) => {
+                    if (s.exists()) {
+                        currentHistory = s.data().history || [];
+                        updateChart();
+                        updateConnectionStatus('✅ Live-Daten aktiv');
+                    }
+                });
+            } catch (e) {
+                console.error('Firebase Fehler:', e);
+                updateConnectionStatus('⚠️ Firebase nicht erreichbar');
             }
-            refreshUI(newData.history || [], newStrichliste);
-            updateConnectionStatus('✅ Firebase verbunden - Live-Daten werden angezeigt');
-          }
-        });
-      } catch (e) {
-        console.error('Firebase Fehler:', e);
-        let errorMsg = 'Firebase nicht erreichbar';
-        if (e.message) errorMsg += `: ${e.message}`;
-        updateConnectionStatus(`⚠️ ${errorMsg}`);
-        showError(errorMsg);
-      }
-    }
+        }
 
-    initFirebase();
-    document.getElementById('downloadCsvBtn').addEventListener('click', () => downloadCSV(currentHistory,
-      currentStrichliste));
-  </script>
+        // Start
+        populateNameDropdown();
+        initFirebase();
+    </script>
 </body>
-      </html>
+</html>
