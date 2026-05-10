@@ -76,6 +76,16 @@
             max-height: 400px;
             width: 100% !important;
         }
+        #averageDisplay {
+            margin-top: 15px;
+            color: #f9b43a;
+            font-weight: bold;
+            font-size: 1.1rem;
+            background: #252536;
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: inline-block;
+        }
         footer {
             font-size: 11px;
             margin-top: 30px;
@@ -110,6 +120,7 @@
     <div id="chartContainer">
         <div id="chartLoading" class="loading">📡 Warte auf Daten...</div>
         <canvas id="personalChart" style="display: none;"></canvas>
+        <div id="averageDisplay"></div>
     </div>
 
     <footer><span id="connectionStatus">🔌 Verbinde...</span></footer>
@@ -147,7 +158,6 @@
             const now = new Date();
             const months = [];
             const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-            // Aktueller Monat zuerst (i=0), dann vor 1 Monat, 2 Monate, ... 11 Monate
             for (let i = 0; i < 12; i++) {
                 const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
                 months.push({
@@ -242,7 +252,11 @@
         function updateChart() {
             const name = document.getElementById('nameSelect').value;
             const metric = document.getElementById('metricSelect').value;
-            if (!name || !currentHistory.length) return;
+            const averageDisplay = document.getElementById('averageDisplay');
+            if (!name || !currentHistory.length) {
+                averageDisplay.textContent = '';
+                return;
+            }
 
             const months = getLast12Months();
             let data, yLabel;
@@ -268,11 +282,28 @@
                 canvas.style.display = 'none';
                 loadingDiv.style.display = 'block';
                 loadingDiv.textContent = '📭 Keine Daten für diesen Zeitraum';
+                averageDisplay.textContent = '';
                 return;
             }
 
             loadingDiv.style.display = 'none';
             canvas.style.display = 'block';
+
+            // Mittelwert berechnen (nur gültige Monate)
+            const validData = data.filter(v => v !== null && v !== undefined);
+            let avgText = '';
+            if (validData.length > 0) {
+                const sum = validData.reduce((a, b) => a + b, 0);
+                const avg = sum / validData.length;
+                if (metric === 'count') {
+                    avgText = `📊 Durchschnitt: ${avg.toFixed(1)} Biere/Monat (${validData.length} Monate mit Daten)`;
+                } else {
+                    avgText = `📊 Durchschnitt: ${avg.toFixed(1)} Minuten (${validData.length} Monate mit Daten)`;
+                }
+            } else {
+                avgText = 'Keine gültigen Monate für Durchschnitt';
+            }
+            averageDisplay.textContent = avgText;
 
             const ctx = canvas.getContext('2d');
             personalChart = new Chart(ctx, {
