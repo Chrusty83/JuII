@@ -111,8 +111,8 @@
             <label for="metricSelect">📊 Metrik:</label>
             <select id="metricSelect">
                 <option value="count">Anzahl Biere pro Monat</option>
-                <option value="avgDuration">Ø Trinkdauer pro Tag (Min.)</option>
-                <option value="fastest">Schnellstes Bier (Min.)</option>
+                <option value="avgDuration">Ø Trinkdauer pro Tag (Min., ab 2 Min.)</option>
+                <option value="fastest">Schnellstes Bier (Min., ab 2 Min.)</option>
             </select>
         </div>
     </div>
@@ -168,7 +168,6 @@
             return months;
         }
 
-        // Geändert: Initialwerte sind null, erst bei Bier-Fund wird hochgezählt
         function getMonthlyCounts(historyArray, name) {
             const months = getLast12Months();
             const counts = new Array(12).fill(null);
@@ -186,6 +185,7 @@
             return counts;
         }
 
+        // Geändert: Intervalle < 2 Min. werden ignoriert
         function getAverageDrinkDurationPerDay(historyArray, name) {
             const months = getLast12Months();
             const result = new Array(12).fill(null);
@@ -213,11 +213,17 @@
                     const times = dayMap[day];
                     if (times.length < 2) continue;
                     let totalDiff = 0;
+                    let validIntervals = 0;
                     for (let j = 1; j < times.length; j++) {
                         const diff = (times[j] - times[j - 1]) / (1000 * 60);
-                        if (diff > 0) totalDiff += diff;
+                        if (diff >= 2) {        // nur Intervalle ab 2 Minuten
+                            totalDiff += diff;
+                            validIntervals++;
+                        }
                     }
-                    dayAverages.push(totalDiff / (times.length - 1));
+                    if (validIntervals > 0) {
+                        dayAverages.push(totalDiff / validIntervals);
+                    }
                 }
 
                 if (dayAverages.length > 0) {
@@ -227,6 +233,7 @@
             return result;
         }
 
+        // Geändert: schnellstes Bier nur ab 2 Minuten
         function getFastestDrink(historyArray, name) {
             const months = getLast12Months();
             const result = new Array(12).fill(null);
@@ -246,7 +253,9 @@
                 let minDiff = Infinity;
                 for (let j = 1; j < sorted.length; j++) {
                     const diff = (new Date(sorted[j].time) - new Date(sorted[j - 1].time)) / (1000 * 60);
-                    if (diff > 0 && diff < minDiff) minDiff = diff;
+                    if (diff >= 2 && diff < minDiff) {   // nur Intervalle ab 2 Minuten
+                        minDiff = diff;
+                    }
                 }
                 if (minDiff !== Infinity) result[i] = minDiff;
             }
@@ -293,7 +302,6 @@
             loadingDiv.style.display = 'none';
             canvas.style.display = 'block';
 
-            // Mittelwert nur aus gültigen Monaten
             const validData = data.filter(v => v !== null && v !== undefined);
             let avgText = '';
             if (validData.length > 0) {
@@ -302,7 +310,7 @@
                 if (metric === 'count') {
                     avgText = `📊 Durchschnitt: ${avg.toFixed(1)} Biere/Monat (${validData.length} Monate mit Daten)`;
                 } else {
-                    avgText = `📊 Durchschnitt: ${avg.toFixed(1)} Minuten (${validData.length} Monate mit Daten)`;
+                    avgText = `📊 Durchschnitt: ${avg.toFixed(1)} Minuten (${validData.length} Monaten mit Daten)`;
                 }
             } else {
                 avgText = 'Keine gültigen Monate für Durchschnitt';
@@ -316,7 +324,7 @@
                     labels: months.map(m => m.label),
                     datasets: [{
                         label: yLabel,
-                        data: data,  // null-Werte als Lücken behalten
+                        data: data,
                         backgroundColor: '#f9b43a',
                         borderRadius: 8,
                         borderSkipped: false,
