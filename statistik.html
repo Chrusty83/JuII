@@ -509,7 +509,7 @@
   <div id="speedRankingList" class="speed-ranking-list"><div style="text-align:center;padding:20px;color:#888;">📊 Berechne Rekorde...</div></div>
 </div>
 <div class="speed-ranking-container">
-  <h2>⏱️ Durchschnittliche Trinkdauer pro Person (gleicher Tag) ⏱️</h2>
+  <h2>⏱️ Durchschnittliche Trinkdauer pro Person (gleicher Tag | nur Pausen > 2 Minuten)</h2>
   <div id="avgTimeList" class="speed-ranking-list"><div style="text-align:center;padding:20px;color:#888;">📊 Berechne Durchschnittswerte...</div></div>
 </div>
 <div class="history-container">
@@ -637,6 +637,7 @@ function getFastestDrinkTimes(historyArray) {
   return Object.entries(personTimes).map(([n, t]) => ({ name: n, time: Math.min(...t) })).sort((a, b) => a.time - b.time).slice(0, 10); 
 }
 
+// ⭐ AKTUALISIERT: Nur Pausen > 2 Minuten werden für die durchschnittliche Trinkdauer berücksichtigt
 function getAverageDrinkTimes(historyArray) { 
   const beerEntries = filterBeerEntries(historyArray); 
   if (beerEntries.length < 2) return []; 
@@ -655,7 +656,8 @@ function getAverageDrinkTimes(historyArray) {
     for (let i = 1; i < drinks.length; i++) 
       if (drinks[i].dateKey === drinks[i-1].dateKey) { 
         const diff = (drinks[i].timeMs - drinks[i-1].timeMs) / (1000 * 60); 
-        if (diff > 0) intervals.push(diff); 
+        // NUR Werte ÜBER 2 Minuten werden einbezogen (Ausreißer <2min werden ignoriert)
+        if (diff > 2) intervals.push(diff); 
       } 
     if (intervals.length) 
       result.push({ name, avgTime: intervals.reduce((a, b) => a + b, 0) / intervals.length, count: intervals.length }); 
@@ -822,10 +824,10 @@ function renderAverageTimes(historyArray) {
   const container = document.getElementById('avgTimeList'); 
   const avg = getAverageDrinkTimes(historyArray); 
   if (!avg.length) { 
-    container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">⏱️ Keine ausreichenden Daten (mind. 2 Biere am gleichen Tag)</div>'; 
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">⏱️ Keine ausreichenden Daten (mind. 2 Biere am gleichen Tag mit Pause > 2 min)</div>'; 
     return; 
   } 
-  container.innerHTML = avg.map((a, i) => `<div class="speed-ranking-item"><div class="speed-rank-number${i===0?' speed-rank-1':i===1?' speed-rank-2':i===2?' speed-rank-3':''}">${i+1}.</div><div class="speed-rank-name">${escapeHtml(a.name)}</div><div class="speed-rank-time">${formatTime(a.avgTime)} <span class="avg-time">(Ø ${a.count})</span></div></div>`).join(''); 
+  container.innerHTML = avg.map((a, i) => `<div class="speed-ranking-item"><div class="speed-rank-number${i===0?' speed-rank-1':i===1?' speed-rank-2':i===2?' speed-rank-3':''}">${i+1}.</div><div class="speed-rank-name">${escapeHtml(a.name)}</div><div class="speed-rank-time">${formatTime(a.avgTime)} <span class="avg-time">(Ø aus ${a.count} Pausen >2min)</span></div></div>`).join(''); 
 }
 
 function renderMonthlyTopDrinkers(historyArray) { 
@@ -931,7 +933,6 @@ function renderMonthlyChart(historyArray) {
   }); 
 }
 
-// AKTUALISIERT: Top 3 Trinktage als Ranking
 function renderExtraStats(historyArray) { 
   const beers = filterBeerEntries(historyArray); 
   if (!beers.length) {
@@ -951,7 +952,6 @@ function renderExtraStats(historyArray) {
     if (!isNaN(d)) dayCount[d.getDay()]++; 
   });
   
-  // Erstelle Array mit (Index, Anzahl) und sortiere absteigend
   const dayRanking = dayCount
     .map((count, index) => ({ index, count, name: dayNames[index], icon: dayIcons[index] }))
     .sort((a, b) => b.count - a.count)
@@ -973,7 +973,7 @@ function renderExtraStats(historyArray) {
   
   document.getElementById('favoriteDay').innerHTML = top3DaysHtml;
   
-  // Comeback-King (bleibt unverändert)
+  // Comeback-King
   const personLastTwo = {}; 
   beers.forEach(e => { 
     const d = new Date(e.time); 
@@ -991,7 +991,7 @@ function renderExtraStats(historyArray) {
     } 
   document.getElementById('comebackKing').innerHTML = best ? `<div class="stat-line"><strong>👑 ${escapeHtml(best.name)}</strong><span>${best.gap.toFixed(1)} Tage Pause</span></div>` : '<div class="stat-line">📭 Kein Comeback erkannt</div>'; 
   
-  // Buddy-Ranking (bleibt unverändert)
+  // Buddy-Ranking
   const sorted = [...beers].sort((a,b)=>new Date(a.time)-new Date(b.time)), pairs = {}; 
   for(let i=0;i<sorted.length;i++){ 
     const ti=new Date(sorted[i].time); 
@@ -1082,4 +1082,4 @@ initFirebase();
 document.getElementById('downloadCsvBtn').addEventListener('click', () => downloadCSV(currentHistory, currentStrichliste));
 </script>
 </body>
-</html>
+  </html>
