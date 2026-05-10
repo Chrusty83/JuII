@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Persönliche Bierstatistik (12 Monate)</title>
+    <title>Bier-Rückblick</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
     </script>
     <style>
@@ -90,7 +90,7 @@
     </style>
 </head>
 <body>
-    <h1>🍺 Persönliche Bierstatistik (12 Monate)</h1>
+    <h1>🍺 Bier-Rückblick</h1>
 
     <div class="controls">
         <div class="control-group">
@@ -143,6 +143,21 @@
                 .name.includes('Bezahlung')) || [];
         }
 
+        function getLast12Months() {
+            const now = new Date();
+            const months = [];
+            const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+            // Aktueller Monat zuerst (i=0), dann vor 1 Monat, 2 Monate, ... 11 Monate
+            for (let i = 0; i < 12; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push({
+                    key: `${d.getFullYear()}-${d.getMonth()+1}`,
+                    label: `${monthNames[d.getMonth()]} ${d.getFullYear()}`
+                });
+            }
+            return months;
+        }
+
         function getMonthlyCounts(historyArray, name) {
             const months = getLast12Months();
             const counts = new Array(12).fill(0);
@@ -162,7 +177,6 @@
             const result = new Array(12).fill(null);
             const beerEntries = filterBeerEntries(historyArray).filter(e => e.name === name);
 
-            // Für jeden Monat: sammle Einträge nach Tag
             for (let i = 0; i < 12; i++) {
                 const month = months[i];
                 const monthBeers = beerEntries.filter(e => {
@@ -171,10 +185,7 @@
                     return `${d.getFullYear()}-${d.getMonth()+1}` === month.key;
                 });
 
-                // Nach Zeit sortieren
                 const sorted = [...monthBeers].sort((a, b) => new Date(a.time) - new Date(b.time));
-
-                // Gruppieren nach Tag
                 const dayMap = {};
                 sorted.forEach(entry => {
                     const d = new Date(entry.time);
@@ -189,7 +200,7 @@
                     if (times.length < 2) continue;
                     let totalDiff = 0;
                     for (let j = 1; j < times.length; j++) {
-                        const diff = (times[j] - times[j - 1]) / (1000 * 60); // in Minuten
+                        const diff = (times[j] - times[j - 1]) / (1000 * 60);
                         if (diff > 0) totalDiff += diff;
                     }
                     dayAverages.push(totalDiff / (times.length - 1));
@@ -228,20 +239,6 @@
             return result;
         }
 
-        function getLast12Months() {
-            const now = new Date();
-            const months = [];
-            const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-            for (let i = 11; i >= 0; i--) {
-                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                months.push({
-                    key: `${d.getFullYear()}-${d.getMonth()+1}`,
-                    label: `${monthNames[d.getMonth()]} ${d.getFullYear()}`
-                });
-            }
-            return months;
-        }
-
         function updateChart() {
             const name = document.getElementById('nameSelect').value;
             const metric = document.getElementById('metricSelect').value;
@@ -261,15 +258,12 @@
                 yLabel = 'Minuten (Minimum)';
             }
 
-            // Chart aktualisieren
             const canvas = document.getElementById('personalChart');
             const loadingDiv = document.getElementById('chartLoading');
 
             if (personalChart) personalChart.destroy();
 
-            // Prüfen, ob überhaupt Daten vorhanden (mind. ein Wert nicht null)
             const hasData = data.some(v => v !== null && v !== undefined);
-
             if (!hasData) {
                 canvas.style.display = 'none';
                 loadingDiv.style.display = 'block';
@@ -287,7 +281,7 @@
                     labels: months.map(m => m.label),
                     datasets: [{
                         label: yLabel,
-                        data: data.map(v => v === null ? 0 : v), // null als 0 anzeigen, aber mit spezieller Farbe?
+                        data: data.map(v => v === null ? 0 : v),
                         backgroundColor: '#f9b43a',
                         borderRadius: 8,
                         borderSkipped: false,
@@ -348,8 +342,7 @@
         function populateNameDropdown() {
             const select = document.getElementById('nameSelect');
             select.innerHTML = NAMES.map(name => `<option value="${name}">${name}</option>`).join('');
-            select.value = NAMES[0]; // Erstes Element vorauswählen
-            // Event Listener für Änderungen
+            select.value = NAMES[0];
             select.addEventListener('change', updateChart);
             document.getElementById('metricSelect').addEventListener('change', updateChart);
         }
@@ -392,7 +385,6 @@
             }
         }
 
-        // Start
         populateNameDropdown();
         initFirebase();
     </script>
