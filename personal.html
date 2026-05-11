@@ -146,12 +146,11 @@
     <div id="chartContainer">
         <div id="chartLoading" class="loading">📡 Warte auf Daten...</div>
         <canvas id="personalChart" style="display: none;"></canvas>
-        <!-- Neue Stats-Karten unter dem Diagramm -->
         <div class="stats-container">
             <div class="stat-card">
                 <div class="stat-label" id="statLabel1">📊 Ø / Monat</div>
                 <div class="stat-value" id="statValue1">--</div>
-                <div class="stat-sub" id="statSub1"></div>
+                <div class="stat-sub" id="statSub1">Monate mit Daten</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">📅 Ø / Tag</div>
@@ -311,11 +310,18 @@
         function updateChart() {
             const name = document.getElementById('nameSelect').value;
             const metric = document.getElementById('metricSelect').value;
+
+            // Standardwerte setzen
+            const statValue1 = document.getElementById('statValue1');
+            const statValue2 = document.getElementById('statValue2');
+            const statValue3 = document.getElementById('statValue3');
+            const statSub1 = document.getElementById('statSub1');
+
             if (!name || !currentHistory.length) {
-                document.getElementById('statValue1').textContent = '--';
-                document.getElementById('statValue2').textContent = '--';
-                document.getElementById('statValue3').textContent = '--';
-                document.getElementById('statSub1').textContent = '';
+                statValue1.textContent = '--';
+                statValue2.textContent = '--';
+                statValue3.textContent = '--';
+                statSub1.textContent = 'Monate mit Daten';
                 return;
             }
 
@@ -346,31 +352,91 @@
                 canvas.style.display = 'none';
                 loadingDiv.style.display = 'block';
                 loadingDiv.textContent = '📭 Keine Daten für diesen Zeitraum';
-                document.getElementById('statValue1').textContent = '--';
-                document.getElementById('statValue2').textContent = '--';
-                document.getElementById('statValue3').textContent = '--';
-                document.getElementById('statSub1').textContent = '';
-                return;
+            } else {
+                loadingDiv.style.display = 'none';
+                canvas.style.display = 'block';
+
+                const ctx = canvas.getContext('2d');
+                personalChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: months.map(m => m.label),
+                        datasets: [{
+                            label: yLabel,
+                            data: data,
+                            backgroundColor: '#f9b43a',
+                            borderRadius: 8,
+                            borderSkipped: false,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: '#fff'
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const raw = context.raw;
+                                        if (raw === null || raw === undefined) return 'Keine Daten';
+                                        if (metric === 'count') return `${raw} Bier(e)`;
+                                        return `${raw.toFixed(1)} Min.`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    color: '#ddd',
+                                    callback: function(value) {
+                                        if (metric === 'count') return Number.isInteger(value) ? value : '';
+                                        return value;
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(255,255,255,0.1)'
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    color: '#ffd966',
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    font: {
+                                        size: 9
+                                    }
+                                },
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        }
+                    }
+                });
             }
 
-            loadingDiv.style.display = 'none';
-            canvas.style.display = 'block';
+            // JETZT IMMER die 3 Karten befüllen (unabhängig von der Metrik)
+            const personBeersAll = filterBeerEntries(currentHistory).filter(e => e.name === name);
 
-            // 1. Durchschnitt pro Monat (basierend auf gewählter Metrik)
+            // 1. Ø pro Monat (Basis: gewählte Metrik)
             const validData = data.filter(v => v !== null && v !== undefined);
-            let stat1Value = '--', stat1Sub = '';
             if (validData.length > 0) {
                 const sum = validData.reduce((a, b) => a + b, 0);
                 const avg = sum / validData.length;
-                stat1Value = fmtNum(avg);
-                if (metric === 'count') stat1Value += ' 🍺';
-                else stat1Value += ' Min';
-                stat1Sub = `${validData.length} Monate`;
+                statValue1.textContent = fmtNum(avg) + (metric === 'count' ? ' 🍺' : ' Min');
+                statSub1.textContent = validData.length + ' Monate';
+            } else {
+                statValue1.textContent = '--';
+                statSub1.textContent = 'Monate mit Daten';
             }
 
-            // 2. Durchschnitt Biere pro Tag & 3. Durchschnitt am Donnerstag
-            const personBeersAll = filterBeerEntries(currentHistory).filter(e => e.name === name);
-            let stat2Value = '--', stat3Value = '--';
+            // 2. & 3. Ø Biere pro Tag & Ø Biere am Donnerstag
             if (personBeersAll.length > 0) {
                 const days = new Set();
                 const thursdays = new Set();
@@ -387,78 +453,12 @@
                 });
                 const avgPerDay = personBeersAll.length / days.size;
                 const avgThursday = thursdays.size > 0 ? thursdayTotal / thursdays.size : 0;
-                stat2Value = fmtNum(avgPerDay) + ' 🍺';
-                stat3Value = fmtNum(avgThursday) + ' 🍺';
+                statValue2.textContent = fmtNum(avgPerDay) + ' 🍺';
+                statValue3.textContent = fmtNum(avgThursday) + ' 🍺';
+            } else {
+                statValue2.textContent = '--';
+                statValue3.textContent = '--';
             }
-
-            document.getElementById('statValue1').textContent = stat1Value;
-            document.getElementById('statValue2').textContent = stat2Value;
-            document.getElementById('statValue3').textContent = stat3Value;
-            document.getElementById('statSub1').textContent = stat1Sub;
-
-            const ctx = canvas.getContext('2d');
-            personalChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: months.map(m => m.label),
-                    datasets: [{
-                        label: yLabel,
-                        data: data,
-                        backgroundColor: '#f9b43a',
-                        borderRadius: 8,
-                        borderSkipped: false,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: '#fff'
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const raw = context.raw;
-                                    if (raw === null || raw === undefined) return 'Keine Daten';
-                                    if (metric === 'count') return `${raw} Bier(e)`;
-                                    return `${raw.toFixed(1)} Min.`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                color: '#ddd',
-                                callback: function(value) {
-                                    if (metric === 'count') return Number.isInteger(value) ? value : '';
-                                    return value;
-                                }
-                            },
-                            grid: {
-                                color: 'rgba(255,255,255,0.1)'
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                color: '#ffd966',
-                                maxRotation: 45,
-                                minRotation: 45,
-                                font: {
-                                    size: 9
-                                }
-                            },
-                            grid: {
-                                display: false
-                            }
-                        }
-                    }
-                }
-            });
         }
 
         function populateNameDropdown() {
