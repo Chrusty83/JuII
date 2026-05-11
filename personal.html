@@ -76,15 +76,41 @@
             max-height: 400px;
             width: 100% !important;
         }
-        .stat-box {
-            margin-top: 10px;
-            color: #f9b43a;
-            font-weight: bold;
-            font-size: 1.1rem;
+        .stats-container {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
             background: #252536;
-            padding: 8px 16px;
             border-radius: 20px;
-            display: inline-block;
+            padding: 12px 18px;
+            min-width: 140px;
+            text-align: center;
+            border: 1px solid #3a3a4a;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(249, 180, 58, 0.15);
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #ffd966;
+            margin-bottom: 8px;
+        }
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: bold;
+            color: #f9b43a;
+        }
+        .stat-sub {
+            font-size: 0.7rem;
+            color: #aaa;
+            margin-top: 5px;
         }
         footer {
             font-size: 11px;
@@ -120,8 +146,24 @@
     <div id="chartContainer">
         <div id="chartLoading" class="loading">📡 Warte auf Daten...</div>
         <canvas id="personalChart" style="display: none;"></canvas>
-        <div id="averageDisplay" class="stat-box"></div>
-        <div id="extraStatsDisplay" class="stat-box"></div>
+        <!-- Neue Stats-Karten unter dem Diagramm -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-label" id="statLabel1">📊 Ø / Monat</div>
+                <div class="stat-value" id="statValue1">--</div>
+                <div class="stat-sub" id="statSub1"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">📅 Ø / Tag</div>
+                <div class="stat-value" id="statValue2">--</div>
+                <div class="stat-sub">an Trinktagen</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">🍻 Ø / Do</div>
+                <div class="stat-value" id="statValue3">--</div>
+                <div class="stat-sub">an Donnerstagen</div>
+            </div>
+        </div>
     </div>
 
     <footer><span id="connectionStatus">🔌 Verbinde...</span></footer>
@@ -262,7 +304,6 @@
         }
 
         function fmtNum(val) {
-            // Keine Nachkommastellen bei ganzen Zahlen
             if (val % 1 === 0) return val.toString();
             return val.toFixed(2);
         }
@@ -270,11 +311,11 @@
         function updateChart() {
             const name = document.getElementById('nameSelect').value;
             const metric = document.getElementById('metricSelect').value;
-            const averageDisplay = document.getElementById('averageDisplay');
-            const extraStatsDisplay = document.getElementById('extraStatsDisplay');
             if (!name || !currentHistory.length) {
-                averageDisplay.textContent = '';
-                extraStatsDisplay.innerHTML = '';
+                document.getElementById('statValue1').textContent = '--';
+                document.getElementById('statValue2').textContent = '--';
+                document.getElementById('statValue3').textContent = '--';
+                document.getElementById('statSub1').textContent = '';
                 return;
             }
 
@@ -284,12 +325,15 @@
             if (metric === 'count') {
                 data = getMonthlyCounts(currentHistory, name);
                 yLabel = 'Anzahl Biere';
+                document.getElementById('statLabel1').textContent = '📊 Ø / Monat';
             } else if (metric === 'avgDuration') {
                 data = getAverageDrinkDurationPerDay(currentHistory, name);
                 yLabel = 'Minuten (Ø pro Tag)';
+                document.getElementById('statLabel1').textContent = '⏱️ Ø Dauer/Monat';
             } else if (metric === 'fastest') {
                 data = getFastestDrink(currentHistory, name);
                 yLabel = 'Minuten (Minimum)';
+                document.getElementById('statLabel1').textContent = '⚡ Schnitt/Min';
             }
 
             const canvas = document.getElementById('personalChart');
@@ -302,34 +346,32 @@
                 canvas.style.display = 'none';
                 loadingDiv.style.display = 'block';
                 loadingDiv.textContent = '📭 Keine Daten für diesen Zeitraum';
-                averageDisplay.textContent = '';
-                extraStatsDisplay.innerHTML = '';
+                document.getElementById('statValue1').textContent = '--';
+                document.getElementById('statValue2').textContent = '--';
+                document.getElementById('statValue3').textContent = '--';
+                document.getElementById('statSub1').textContent = '';
                 return;
             }
 
             loadingDiv.style.display = 'none';
             canvas.style.display = 'block';
 
+            // 1. Durchschnitt pro Monat (basierend auf gewählter Metrik)
             const validData = data.filter(v => v !== null && v !== undefined);
-            let avgText = '';
+            let stat1Value = '--', stat1Sub = '';
             if (validData.length > 0) {
                 const sum = validData.reduce((a, b) => a + b, 0);
                 const avg = sum / validData.length;
-                if (metric === 'count') {
-                    avgText = `📊 Durchschnitt: ${fmtNum(avg)} Biere/Monat (${validData.length} Monate mit Daten)`;
-                } else {
-                    avgText = `📊 Durchschnitt: ${fmtNum(avg)} Minuten (${validData.length} Monate mit Daten)`;
-                }
-            } else {
-                avgText = 'Keine gültigen Monate für Durchschnitt';
+                stat1Value = fmtNum(avg);
+                if (metric === 'count') stat1Value += ' 🍺';
+                else stat1Value += ' Min';
+                stat1Sub = `${validData.length} Monate`;
             }
-            averageDisplay.textContent = avgText;
 
-            // Zusätzliche Durchschnittswerte (untereinander)
+            // 2. Durchschnitt Biere pro Tag & 3. Durchschnitt am Donnerstag
             const personBeersAll = filterBeerEntries(currentHistory).filter(e => e.name === name);
-            if (personBeersAll.length === 0) {
-                extraStatsDisplay.innerHTML = 'Keine Biereinträge vorhanden.';
-            } else {
+            let stat2Value = '--', stat3Value = '--';
+            if (personBeersAll.length > 0) {
                 const days = new Set();
                 const thursdays = new Set();
                 let thursdayTotal = 0;
@@ -338,16 +380,21 @@
                     if (isNaN(d)) return;
                     const dateKey = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
                     days.add(dateKey);
-                    if (d.getDay() === 4) { // Donnerstag
+                    if (d.getDay() === 4) {
                         thursdays.add(dateKey);
                         thursdayTotal++;
                     }
                 });
                 const avgPerDay = personBeersAll.length / days.size;
                 const avgThursday = thursdays.size > 0 ? thursdayTotal / thursdays.size : 0;
-                // Werte untereinander mit Zeilenumbruch
-                extraStatsDisplay.innerHTML = `📅 Ø Biere/Tag: ${fmtNum(avgPerDay)}<br>🍻 Ø Biere/Do: ${fmtNum(avgThursday)}`;
+                stat2Value = fmtNum(avgPerDay) + ' 🍺';
+                stat3Value = fmtNum(avgThursday) + ' 🍺';
             }
+
+            document.getElementById('statValue1').textContent = stat1Value;
+            document.getElementById('statValue2').textContent = stat2Value;
+            document.getElementById('statValue3').textContent = stat3Value;
+            document.getElementById('statSub1').textContent = stat1Sub;
 
             const ctx = canvas.getContext('2d');
             personalChart = new Chart(ctx, {
