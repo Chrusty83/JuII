@@ -146,12 +146,16 @@
     <div id="chartContainer">
         <div id="chartLoading" class="loading">📡 Warte auf Daten...</div>
         <canvas id="personalChart" style="display: none;"></canvas>
-        <div class="stats-container">
+        <!-- Erster Absatz: Durchschnitt pro Monat (Metrik-abhängig) -->
+        <div class="stats-container" id="metricStatsContainer">
             <div class="stat-card">
                 <div class="stat-label" id="statLabel1">📊 Ø / Monat</div>
                 <div class="stat-value" id="statValue1">--</div>
                 <div class="stat-sub" id="statSub1">Monate mit Daten</div>
             </div>
+        </div>
+        <!-- Zweiter Absatz: Durchschnitt Biere pro Tag & Donnerstag (immer sichtbar) -->
+        <div class="stats-container" id="beerStatsContainer">
             <div class="stat-card">
                 <div class="stat-label">📅 Ø / Tag</div>
                 <div class="stat-value" id="statValue2">--</div>
@@ -311,7 +315,6 @@
             const name = document.getElementById('nameSelect').value;
             const metric = document.getElementById('metricSelect').value;
 
-            // Standardwerte setzen
             const statValue1 = document.getElementById('statValue1');
             const statValue2 = document.getElementById('statValue2');
             const statValue3 = document.getElementById('statValue3');
@@ -421,10 +424,7 @@
                 });
             }
 
-            // JETZT IMMER die 3 Karten befüllen (unabhängig von der Metrik)
-            const personBeersAll = filterBeerEntries(currentHistory).filter(e => e.name === name);
-
-            // 1. Ø pro Monat (Basis: gewählte Metrik)
+            // 1. Metrik-Durchschnitt pro Monat
             const validData = data.filter(v => v !== null && v !== undefined);
             if (validData.length > 0) {
                 const sum = validData.reduce((a, b) => a + b, 0);
@@ -436,7 +436,8 @@
                 statSub1.textContent = 'Monate mit Daten';
             }
 
-            // 2. & 3. Ø Biere pro Tag & Ø Biere am Donnerstag
+            // 2. & 3. Ø Biere pro Tag & Ø Biere am Donnerstag (immer berechnet)
+            const personBeersAll = filterBeerEntries(currentHistory).filter(e => e.name === name);
             if (personBeersAll.length > 0) {
                 const days = new Set();
                 const thursdays = new Set();
